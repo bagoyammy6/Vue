@@ -19,11 +19,16 @@ const routes = [
   {
     path: "/findroad",
     name: "findroad",
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: () =>
-      import(/* webpackChunkName: "about" */ "../views/FindRoad.vue"),
+    component: () => import("../views/FindRoad.vue"),
+  },
+  {
+    path: "/404",
+    name: "404",
+    component: () => import("../views/errorPage.vue"),
+  },
+  {
+    path: "/:pathMatch(.*)",
+    redirect: "/404",
   },
 ];
 

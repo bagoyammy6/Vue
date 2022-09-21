@@ -23,7 +23,7 @@ body {
   border: 0;
 }
 .pop {
-  width: 366px;
+  width: 364px;
   box-shadow: 0 3px 14px rgb(0 0 0 / 40%);
   border: 1px solid #0e5978;
   border-radius: 12px;
@@ -145,5 +145,15 @@ body {
   display: flex;
   align-items: center;
   margin-left: 30px;
+}
+.locate {
+  font-weight: 700;
+  font-size: 20px;
+  box-shadow: 0 3px 14px rgb(0 0 0 / 40%);
+  border: 1px solid #0e5978;
+  border-radius: 12px;
+}
+.highlight {
+  color: #ff6900;
 }
 </style>

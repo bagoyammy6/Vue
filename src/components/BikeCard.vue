@@ -7,7 +7,11 @@
       v-for="(d, idx) in searchResult"
       @click="getCoord(d, idx)"
     >
-      <div class="spot-name">{{ d.StationName.Zh_tw }}</div>
+      <!-- <div class="spot-name">{{ d.StationName.Zh_tw }}</div> -->
+      <div
+        class="spot-name"
+        v-html="keywordHighlight(d.StationName.Zh_tw)"
+      ></div>
       <div class="address">
         <div class="address-img">
           <i class="fa-solid fa-location-dot"></i>
@@ -57,6 +61,15 @@ export default {
       // console.log(this.$store.state.stationCoord);
       this.$store.commit("setStationAva", this.available[idx]);
       // console.log(this.$store.state.stationAva);
+    },
+    keywordHighlight: function (val) {
+      // console.log(this.$store.state.keyword);
+      let q = val.replace(
+        new RegExp(this.$store.state.keyword, "g"),
+        `<span class="highlight">${this.$store.state.keyword}</span>`
+      );
+      // console.log(q);
+      return q;
     },
   },
   watch: {

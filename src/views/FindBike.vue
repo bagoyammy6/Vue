@@ -3,19 +3,6 @@
     <MyBar />
     <LeftSide />
     <RightMap />
-    <div class="right-down" v-show="showRightDown">
-      <div class="position-wrap">
-        <div class="position">
-          <i class="fa-solid fa-location-crosshairs"></i>
-        </div>
-      </div>
-      <div class="plus-wrap">
-        <div class="plus"><i class="fa-solid fa-plus"></i></div>
-      </div>
-      <div class="minus-wrap">
-        <div class="minus"><i class="fa-solid fa-minus"></i></div>
-      </div>
-    </div>
   </body>
 </template>
 
@@ -87,68 +74,5 @@ body {
   margin: 0;
   padding: 0;
   border: 0;
-}
-.right-down {
-  position: fixed;
-  top: calc(100vh - 30vh);
-  left: calc(100vw - 5vw);
-  height: 136px;
-  width: 40px;
-}
-.position-wrap {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.position {
-  color: #0e5978;
-  background-color: white;
-  border-radius: 50%;
-  padding: 8px;
-  font-size: large;
-  cursor: pointer;
-}
-.plus-wrap {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.plus {
-  color: #0e5978;
-  background-color: white;
-  border-radius: 50%;
-  padding: 8px;
-  font-size: large;
-  cursor: pointer;
-}
-.minus-wrap {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.minus {
-  color: #0e5978;
-  background-color: white;
-  border-radius: 50%;
-  padding: 8px;
-  font-size: large;
-  cursor: pointer;
-}
-/* iPad Mini */
-@media (max-width: 768px) {
-  .right-down {
-    top: calc(100vh - 20vh);
-    left: calc(100vw - 8vw);
-  }
-}
-/* iPhone XR */
-@media (max-width: 576px) {
-  .right-down {
-    top: calc(100vh - 25vh);
-    left: calc(100vw - 12vw);
-  }
 }
 </style>

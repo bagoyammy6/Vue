@@ -46,6 +46,7 @@ export default createStore({
     goView: {},
     goFood: {},
     search: false,
+    add: false,
   },
   mutations: {
     setTittle(state, payload) {
@@ -179,6 +180,9 @@ export default createStore({
     },
     setSearch(state, payload) {
       state.search = payload;
+    },
+    setAdd(state, payload) {
+      state.add = payload;
     },
   },
   actions: {

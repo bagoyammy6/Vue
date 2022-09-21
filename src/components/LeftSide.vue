@@ -25,7 +25,7 @@
         </div>
       </div>
       <div class="find-bike-btn" v-show="showFind">
-        <div class="county-findBike" @click="setShowCounty">
+        <div class="county-findBike" @click.stop="setShowCounty">
           <div class="county-word-findBike">{{ currCity }}</div>
           <div class="angle-down-findBike" v-show="!showCounty">
             <i class="fa-solid fa-angle-down"></i>
@@ -34,7 +34,7 @@
             <i class="fa-solid fa-angle-up"></i>
           </div>
         </div>
-        <div class="select-county" v-show="showCounty">
+        <div class="select-county" v-show="showCounty" ref="selectCounty">
           <div
             class="each-county"
             v-for="(c, key) in county"
@@ -85,7 +85,7 @@
       <i class="fa-solid fa-angle-right"></i>
     </div>
   </div>
-  <div class="phone-show" @click="changeShowMap">顯示地圖</div>
+  <div class="phone-show" @click="changeShowMap">{{ mapOrWord }}</div>
 </template>
 
 <script>
@@ -128,6 +128,7 @@ export default {
       right: this.$store.state.right,
       advUrl: this.$store.state.advUrl,
       press: this.$store.state.press,
+      mapOrWord: "顯示列表",
     };
   },
   computed: {
@@ -183,6 +184,7 @@ export default {
       this.$store.commit("setSearchFirst", false);
       this.$store.commit("setCurrDistance", "距離");
       this.$store.commit("setCurrDirection", "方向");
+      this.$store.commit("setAdd", false);
       this.$store.commit("setPress", false);
     },
     search: function () {
@@ -192,6 +194,7 @@ export default {
       }
       this.$store.commit("setCurrDistance", "距離");
       this.$store.commit("setCurrDirection", "方向");
+      this.$store.commit("setAdd", false);
       this.$store.commit("setSearchPage", true);
       this.$store.commit("setAdvancedPage", false);
       this.$store.dispatch("getSearchUrl", this.$route.name);
@@ -280,7 +283,7 @@ export default {
               total.push(b[0]);
             });
             this.$store.commit("setAvailable", total);
-            console.log(this.$store.state.available);
+            // console.log(this.$store.state.available);
             // console.log(b);
           })
           .catch((err) => {
@@ -382,7 +385,7 @@ export default {
                 return false;
               }
               this.$store.commit("setSearchResult", a);
-              console.log(this.$store.state.searchResult);
+              // console.log(this.$store.state.searchResult);
               this.allAvailable();
             } else {
               let a = data.filter((d) => d.RouteName.includes(this.keyword));
@@ -392,7 +395,7 @@ export default {
                 return false;
               }
               this.$store.commit("setSearchResult", a);
-              console.log(this.$store.state.searchResult);
+              // console.log(this.$store.state.searchResult);
             }
           } else {
             // console.log(data);
@@ -405,7 +408,6 @@ export default {
         });
     },
     changeShowMap: function () {
-      this.showMap = !this.showMap;
       this.$store.commit("setShowMap", !this.showMap);
     },
     minusPage: function () {
@@ -595,6 +597,35 @@ export default {
     "$store.state.press": function () {
       this.press = this.$store.state.press;
     },
+    "$store.state.search": function () {
+      if (this.$store.state.search) {
+        this.search();
+        this.getMapData();
+        this.getMapAva();
+        // console.log("in");
+      }
+      // console.log("out");
+      this.$store.commit("setSearch", false);
+    },
+    "$store.state.showMap": function () {
+      this.showMap = this.$store.state.showMap;
+      if (this.showMap) {
+        this.mapOrWord = "顯示列表";
+      } else {
+        this.mapOrWord = "顯示地圖";
+      }
+    },
+  },
+  created() {
+    document.addEventListener("click", (e) => {
+      // console.log("q");
+      if (this.$refs.selectCounty) {
+        let isSelf = this.$refs.selectCounty.contains(e.target);
+        if (!isSelf) {
+          this.showCounty = false;
+        }
+      }
+    });
   },
   beforeMount: function GetAuthorizationHeader() {
     const parameter = {
@@ -635,6 +666,7 @@ export default {
       this.getMapData();
       this.getMapAva();
     }
+    this.$store.commit("setSearch", false);
   },
   beforeUpdate: function () {
     this.currCity = this.$store.state.currCity;
@@ -736,7 +768,7 @@ export default {
   background-color: #f0f9fc;
 }
 .county-word-findBike {
-  padding: 0 39px 0 36px;
+  padding: 0 30px 0 43.5px;
   color: #0e5978;
 }
 .angle-down-findBike {

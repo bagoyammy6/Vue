@@ -16,7 +16,7 @@
       </div>
     </div>
     <div class="btn">
-      <div class="county" @click="showList">
+      <div class="county" @click.stop="showList">
         <div class="county-word">{{ currCity }}</div>
         <div class="angle-down" v-show="show">
           <i class="fa-solid fa-angle-up"></i>
@@ -33,7 +33,7 @@
         </div>
       </router-link>
     </div>
-    <div class="county-list" v-show="show">
+    <div class="county-list" v-show="show" ref="countyList">
       <div
         class="list-option"
         v-for="(c, key) in county"
@@ -107,6 +107,7 @@ export default {
       this.$store.commit("setSearchFirst", false);
       this.$store.commit("setCurrDistance", "距離");
       this.$store.commit("setCurrDirection", "方向");
+      this.$store.commit("setAdd", false);
       this.$store.commit("setPress", false);
     },
     getSearch: function () {
@@ -118,6 +119,17 @@ export default {
       // console.log(this.$store.state.search);
     },
     ...mapActions(["getCounty"]),
+  },
+  created() {
+    document.addEventListener("click", (e) => {
+      // console.log("q");
+      if (this.$refs.countyList) {
+        let isSelf = this.$refs.countyList.contains(e.target);
+        if (!isSelf) {
+          this.show = false;
+        }
+      }
+    });
   },
   beforeMount() {
     const parameter = {
@@ -264,7 +276,7 @@ a {
   background-color: #f0f9fc;
 }
 .county-word {
-  padding: 0 60px 0 66px;
+  padding: 0 60px 0 74px;
   color: #0e5978;
 }
 .angle-down {

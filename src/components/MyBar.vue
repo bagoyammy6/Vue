@@ -12,12 +12,17 @@
       <router-link to="/findroad">
         <div class="option-item">尋找車道</div>
       </router-link>
-      <div class="phone-add" @click="showFind">
+      <div class="phone-add" @click.stop="showFind">
         <i class="fa-solid fa-magnifying-glass"></i>
       </div>
     </div>
   </nav>
-  <div class="find-bike" v-show="isActive">
+  <div
+    class="find-bike"
+    v-if="this.$route.name == 'home'"
+    v-show="isActive"
+    ref="findBike"
+  >
     <div class="find-bike-search">
       <div class="magnifier-findBike">
         <i class="fa-solid fa-magnifying-glass"></i>
@@ -32,12 +37,16 @@
       </div>
     </div>
     <div class="find-bike-btn">
-      <div class="county-findBike" @click="setShowCounty">
+      <div class="county-findBike" @click.stop="setShowCounty">
         <div class="county-word-findBike">{{ currCity }}</div>
         <div class="angle-down-findBike" v-show="!showCounty">
           <i class="fa-solid fa-angle-down"></i>
         </div>
-        <div class="angle-down-findBike" v-show="showCounty">
+        <div
+          class="angle-down-findBike"
+          v-show="showCounty"
+          ref="selectBarCounty"
+        >
           <i class="fa-solid fa-angle-up"></i>
         </div>
       </div>
@@ -58,6 +67,54 @@
           <div class="search-btn-word-findBike">搜尋</div>
         </div>
       </router-link>
+    </div>
+  </div>
+  <div
+    class="find-bike"
+    v-if="this.$route.name == 'findbike' || this.$route.name == 'findroad'"
+    v-show="isActive"
+    ref="findBike"
+  >
+    <div class="find-bike-search">
+      <div class="magnifier-findBike">
+        <i class="fa-solid fa-magnifying-glass"></i>
+      </div>
+      <div class="search-word-findBike">
+        <input
+          name="keyword"
+          type="text"
+          :placeholder="placeholder"
+          v-model="keyword"
+        />
+      </div>
+    </div>
+    <div class="find-bike-btn">
+      <div class="county-findBike" @click.stop="setShowCounty">
+        <div class="county-word-findBike">{{ currCity }}</div>
+        <div class="angle-down-findBike" v-show="!showCounty">
+          <i class="fa-solid fa-angle-down"></i>
+        </div>
+        <div
+          class="angle-down-findBike"
+          v-show="showCounty"
+          ref="selectBarCounty"
+        >
+          <i class="fa-solid fa-angle-up"></i>
+        </div>
+      </div>
+      <div class="select-county" v-show="showCounty">
+        <div
+          class="each-county"
+          v-for="(c, key) in county"
+          :key="key"
+          @click="changeCurrCity(c), setShowCounty(), setReqCity(key)"
+        >
+          {{ c }}
+        </div>
+      </div>
+      <div class="search-btn-findBike" @click="getSearch">
+        <div class="search-btn-word-findBike">搜尋</div>
+      </div>
     </div>
   </div>
 </template>
@@ -117,6 +174,7 @@ export default {
       this.$store.commit("setSearchFirst", false);
       this.$store.commit("setCurrDistance", "距離");
       this.$store.commit("setCurrDirection", "方向");
+      this.$store.commit("setAdd", false);
       this.$store.commit("setPress", false);
     },
     getSearch: function () {
@@ -127,6 +185,23 @@ export default {
       this.$store.commit("setSearch", true);
       // console.log(this.$store.state.search);
     },
+  },
+  created() {
+    document.addEventListener("click", (e) => {
+      // console.log("q");
+      if (this.$refs.selectBarCounty) {
+        let isSelf = this.$refs.selectBarCounty.contains(e.target);
+        if (!isSelf) {
+          this.showCounty = false;
+        }
+      }
+      if (this.$refs.findBike) {
+        let isSelf = this.$refs.findBike.contains(e.target);
+        if (!isSelf) {
+          this.isActive = false;
+        }
+      }
+    });
   },
 };
 </script>

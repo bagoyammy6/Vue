@@ -11,7 +11,7 @@
       </div>
     </div>
     <div class="advanced-select-btn" v-show="showAdvanced">
-      <div class="btn-range" @click="setShowRange">
+      <div class="btn-range" @click.stop="setShowRange">
         <div class="btn-range-word" :class="{ btnMobile: add }">
           {{ currDistance }}
         </div>
@@ -22,7 +22,12 @@
           <i class="fa-solid fa-angle-up"></i>
         </div>
       </div>
-      <div class="select-range" v-show="showRange" @click="setShowRange()">
+      <div
+        class="select-range"
+        v-show="showRange"
+        @click="setShowRange()"
+        ref="selectRange"
+      >
         <div
           class="range-option"
           v-for="(d, key) in distance"
@@ -36,7 +41,7 @@
           {{ d }}
         </div>
       </div>
-      <div class="btn-direction" @click="setShowDirection">
+      <div class="btn-direction" @click.stop="setShowDirection">
         <div class="btn-direction-word">{{ currDirection }}</div>
         <div class="btn-direction-symbol" v-show="!showDirection">
           <i class="fa-solid fa-angle-down"></i>
@@ -49,6 +54,7 @@
         class="select-direction"
         v-show="showDirection"
         @click="setShowDirection"
+        ref="selectDirection"
       >
         <div
           class="direction-option"
@@ -81,7 +87,7 @@ export default {
       currDirection: this.$store.state.currDirection,
       direction: { 1: "雙向", 2: "單向" },
       searchResult: this.$store.state.searchResult,
-      add: false,
+      add: this.$store.state.add,
     };
   },
   methods: {
@@ -121,7 +127,7 @@ export default {
       // console.log(this.$store.state.currDirection);
     },
     changeBtnMobile: function () {
-      this.add = true;
+      this.$store.commit("setAdd", true);
     },
     changeSearchResultDistance: function (value) {
       let head = document.querySelector(".scroll");
@@ -232,7 +238,7 @@ export default {
               return false;
             }
             this.$store.commit("setSearchResult", a);
-            console.log(this.$store.state.searchResult);
+            // console.log(this.$store.state.searchResult);
             // this.$store.commit("setTotalAdvancedPage", Math.ceil(a.length / 6));
             // if (this.$store.state.totalAdvancedPage != 1) {
             //   this.$store.commit("setRight", false);
@@ -254,7 +260,7 @@ export default {
       this.$store.commit("setLeft", true);
       this.$store.commit("setRight", true);
       this.$store.commit("setPress", false);
-      this.add = false;
+      this.$store.commit("setAdd", false);
       // let encode = encodeURI(value);
       // console.log(encode);
       //雙向 %E9%9B%99%E5%90%91
@@ -351,7 +357,7 @@ export default {
               return false;
             }
             this.$store.commit("setSearchResult", a);
-            console.log(this.$store.state.searchResult);
+            // console.log(this.$store.state.searchResult);
             // this.$store.commit("setTotalAdvancedPage", Math.ceil(a.length / 6));
             // if (this.$store.state.totalAdvancedPage != 1) {
             //   this.$store.commit("setRight", false);
@@ -367,7 +373,9 @@ export default {
     "$store.state.searchResult": function () {
       this.currDistance = "距離";
       this.currDirection = "方向";
-      this.add = false;
+    },
+    "$store.state.add": function () {
+      this.add = this.$store.state.add;
     },
     "$store.state.currDistance": function () {
       this.currDistance = this.$store.state.currDistance;
@@ -375,6 +383,22 @@ export default {
     "$store.state.currDirection": function () {
       this.currDirection = this.$store.state.currDirection;
     },
+  },
+  created() {
+    document.addEventListener("click", (e) => {
+      if (this.$refs.selectRange) {
+        let isSelf = this.$refs.selectRange.contains(e.target);
+        if (!isSelf) {
+          this.showRange = false;
+        }
+      }
+      if (this.$refs.selectDirection) {
+        let isSelf = this.$refs.selectDirection.contains(e.target);
+        if (!isSelf) {
+          this.showDirection = false;
+        }
+      }
+    });
   },
   beforeMount: function GetAuthorizationHeader() {
     const parameter = {

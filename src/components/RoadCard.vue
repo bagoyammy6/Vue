@@ -7,7 +7,8 @@
       :key="idx"
       v-for="(d, idx) in searchResult"
     >
-      <div class="view-card-title">{{ d.RouteName }}</div>
+      <!-- <div class="view-card-title">{{ d.RouteName }}</div> -->
+      <div class="view-card-title" v-html="keywordHighlight(d.RouteName)"></div>
       <div class="view-card-location">
         <div class="view-card-location-img">
           <i class="fa-solid fa-location-dot"></i>
@@ -64,6 +65,15 @@ export default {
       this.$store.commit("setWork", true);
       this.$store.commit("setLeft", true);
       this.$store.commit("setRight", true);
+    },
+    keywordHighlight: function (val) {
+      // console.log(this.$store.state.keyword);
+      let q = val.replace(
+        new RegExp(this.$store.state.keyword, "g"),
+        `<span class="highlight">${this.$store.state.keyword}</span>`
+      );
+      // console.log(q);
+      return q;
     },
   },
   watch: {

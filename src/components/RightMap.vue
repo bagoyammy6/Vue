@@ -1,5 +1,12 @@
 <template>
   <div id="mapid" class="right" v-show="showMap"></div>
+  <div class="right-down" @click="locate" v-show="showMap">
+    <div class="position-wrap">
+      <div class="position">
+        <i class="fa-solid fa-location-crosshairs"></i>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -20,6 +27,8 @@ export default {
       anotherLayer: {},
       center: {},
       long: 0,
+      home: {},
+      homePoints: {},
     };
   },
   watch: {
@@ -28,7 +37,15 @@ export default {
       // console.log("變了");
     },
     "$store.state.stationCoord": function () {
-      this.myMap.setView(
+      this.$store.commit("setShowMap", true);
+      //手機版的popup會有偏移猜測可能是地圖的問題，先透過螢幕尺寸設定偏移量解決
+      let abc = {};
+      if (screen.width <= 414) {
+        abc = { offset: new L.Point(-183, 10) };
+      } else {
+        abc = { offset: new L.Point(0, 10) };
+      }
+      this.myMap.flyTo(
         [
           this.$store.state.stationCoord.StationPosition.PositionLat,
           this.$store.state.stationCoord.StationPosition.PositionLon,
@@ -38,7 +55,11 @@ export default {
       let dateTime = new Date(
         this.$store.state.stationCoord.UpdateTime
       ).toLocaleString();
-      L.popup({ className: "pop" })
+      L.popup({
+        className: "pop",
+        closeButton: false,
+        offset: abc.offset,
+      })
         .setLatLng([
           this.$store.state.stationCoord.StationPosition.PositionLat,
           this.$store.state.stationCoord.StationPosition.PositionLon,
@@ -128,7 +149,7 @@ export default {
                     </div>
                   </div>
                 </div>`,
-                { className: "pop" }
+                { className: "pop", closeButton: false }
               );
               this.markers.addLayer(this.myLayer).addTo(this.myMap);
             }
@@ -183,7 +204,7 @@ export default {
         ],
         19
       );
-      L.popup({ className: "pop" })
+      L.popup({ className: "pop", closeButton: false })
         .setLatLng([
           this.$store.state.goView.Position.PositionLat,
           this.$store.state.goView.Position.PositionLon,
@@ -222,7 +243,7 @@ export default {
         ],
         19
       );
-      L.popup({ className: "pop" })
+      L.popup({ className: "pop", closeButton: false })
         .setLatLng([
           this.$store.state.goFood.Position.PositionLat,
           this.$store.state.goFood.Position.PositionLon,
@@ -249,7 +270,7 @@ export default {
               <div class="show-time-word">${this.$store.state.goFood.Description}</div>
             </div>
           </div>`,
-          { className: "pop" }
+          { className: "pop", closeButton: false }
         )
         .openOn(this.myMap);
     },
@@ -320,7 +341,7 @@ export default {
               <div class="show-time-word">${a.RoadSectionEnd}</div>
             </div>
           </div>`,
-        { className: "pop" }
+        { className: "pop", closeButton: false }
       );
       this.markers.addLayer(this.myLayer).addTo(this.myMap);
     },
@@ -389,7 +410,7 @@ export default {
               <div class="show-time-word">${a.RoadSectionEnd}</div>
             </div>
           </div>`,
-        { className: "pop" }
+        { className: "pop", closeButton: false }
       );
       this.markers.addLayer(this.anotherLayer).addTo(this.myMap);
       this.center = this.myMap.getCenter();
@@ -445,7 +466,7 @@ export default {
                   <div class="show-time-word">${d.OpenTime}</div>
                 </div>
               </div>`,
-              { className: "pop" }
+              { className: "pop", closeButton: false }
             );
             this.markers.addLayer(this.myLayer).addTo(this.myMap);
           });
@@ -500,7 +521,7 @@ export default {
                   <div class="show-time-word">${d.Description}</div>
                 </div>
               </div>`,
-              { className: "pop" }
+              { className: "pop", closeButton: false }
             );
             this.markers.addLayer(this.myLayer).addTo(this.myMap);
           });
@@ -557,7 +578,7 @@ export default {
                   <div class="show-time-word">${d.OpenTime}</div>
                 </div>
               </div>`,
-              { className: "pop" }
+              { className: "pop", closeButton: false }
             );
             this.markers.addLayer(this.myLayer).addTo(this.myMap);
           });
@@ -614,7 +635,7 @@ export default {
                   <div class="show-time-word">${d.Description}</div>
                 </div>
               </div>`,
-              { className: "pop" }
+              { className: "pop", closeButton: false }
             );
             this.markers.addLayer(this.myLayer).addTo(this.myMap);
           });
@@ -622,6 +643,47 @@ export default {
         .catch((err) => {
           console.log(err);
         });
+    },
+    locate: function () {
+      if (this.home) {
+        this.homePoints.clearLayers();
+      }
+      if (navigator.geolocation) {
+        let longitude = 120;
+        let latitude = 22;
+        let myMap = this.myMap;
+        let home = this.home;
+        let homePoints = this.homePoints;
+        navigator.geolocation.getCurrentPosition(
+          function (position) {
+            longitude = position.coords.longitude; //經度
+            latitude = position.coords.latitude; //緯度
+            // console.log(longitude);
+            // console.log(latitude);
+            myMap.flyTo([latitude, longitude], 17);
+            const customIcon = L.icon({
+              iconUrl: "./location.svg",
+              iconSize: [45, 55],
+            });
+            home = L.marker([latitude, longitude], {
+              icon: customIcon,
+            }).bindPopup(`<div>目前位置</div>`, {
+              className: "locate",
+              closeButton: false,
+            });
+            homePoints.addLayer(home).addTo(myMap);
+          },
+          //錯誤訊息
+          function (e) {
+            const msg = e.code;
+            const dd = e.message;
+            console.error(msg);
+            console.error(dd);
+          }
+        );
+      } else {
+        alert("尚未開啟定位");
+      }
     },
   },
   beforeMount: function GetAuthorizationHeader() {
@@ -680,9 +742,15 @@ export default {
       }
     ).addTo(myMap);
     //下面要在myMap有設定maxZoom屬性後才可加入，否則會報錯
-    let markers = L.markerClusterGroup().addTo(myMap);
+    let markers = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      removeOutsideVisibleBounds: true,
+      spiderLegPolylineOptions: { weight: 1.5, color: "#222", opacity: 0.5 },
+    }).addTo(myMap);
     this.markers = markers;
     this.myMap = myMap;
+    let homePoints = L.layerGroup().addTo(myMap);
+    this.homePoints = homePoints;
     // console.log(this.$store.state.mapData);
   },
 };
@@ -699,6 +767,34 @@ export default {
   background-size: cover;
   background-repeat: no-repeat;
 }
+.right-down {
+  position: fixed;
+  top: calc(100vh - 12vh);
+  left: calc(100vw - 5vw);
+  height: 136px;
+  width: 40px;
+}
+.position-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.position {
+  color: #0e5978;
+  background-color: white;
+  border-radius: 50%;
+  padding: 8px;
+  font-size: large;
+  cursor: pointer;
+}
+/* iPad Mini */
+@media (max-width: 768px) {
+  .right-down {
+    top: calc(100vh - 9vh);
+    left: calc(100vw - 7vw);
+  }
+}
 /* iPhone XR */
 @media (max-width: 576px) {
   .right {
@@ -706,6 +802,10 @@ export default {
     left: 0;
     height: calc(100vh - 107px);
     width: 100vw;
+  }
+  .right-down {
+    top: calc(100vh - 14vh);
+    left: calc(100vw - 13vw);
   }
 }
 </style>
