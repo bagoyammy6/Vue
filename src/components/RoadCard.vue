@@ -57,6 +57,7 @@ export default {
       this.$store.commit("setRoadCoord", d);
     },
     changeCurrentComponent() {
+      this.$store.commit("setIsLoading", true);
       this.$store.commit("setCurrentComponent", "ViewCard");
       this.$store.commit("setShowAdvanced", false);
     },

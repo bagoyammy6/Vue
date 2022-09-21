@@ -146,12 +146,15 @@ export default {
   watch: {
     "$store.state.rangeView": function () {
       this.rangeView = this.$store.state.rangeView;
-      console.log(this.rangeView);
+      // console.log(this.rangeView);
     },
     "$store.state.rangeFood": function () {
       this.rangeFood = this.$store.state.rangeFood;
-      console.log(this.rangeFood);
+      // console.log(this.rangeFood);
     },
+  },
+  mounted: function () {
+    this.$store.commit("setIsLoading", false);
   },
 };
 </script>

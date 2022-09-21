@@ -155,6 +155,7 @@ export default {
             }
           });
         });
+        this.$store.commit("setIsLoading", false);
         this.myMap.flyTo(
           [a[0].StationPosition.PositionLat, a[0].StationPosition.PositionLon],
           10
@@ -179,6 +180,7 @@ export default {
         }
         this.getViewPoint();
         this.getFoodPoint();
+        this.$store.commit("setIsLoading", false);
         // zoom the map to the layer
         this.myMap.fitBounds(this.markers.getBounds());
       }
@@ -645,6 +647,7 @@ export default {
         });
     },
     locate: function () {
+      this.$store.commit("setIsLoading", true);
       if (this.home) {
         this.homePoints.clearLayers();
       }
@@ -654,12 +657,14 @@ export default {
         let myMap = this.myMap;
         let home = this.home;
         let homePoints = this.homePoints;
+        let getLoading = this.$store;
         navigator.geolocation.getCurrentPosition(
           function (position) {
             longitude = position.coords.longitude; //經度
             latitude = position.coords.latitude; //緯度
             // console.log(longitude);
             // console.log(latitude);
+            getLoading.commit("setIsLoading", false);
             myMap.flyTo([latitude, longitude], 17);
             const customIcon = L.icon({
               iconUrl: "./location.svg",
@@ -744,7 +749,7 @@ export default {
     //下面要在myMap有設定maxZoom屬性後才可加入，否則會報錯
     let markers = L.markerClusterGroup({
       showCoverageOnHover: false,
-      removeOutsideVisibleBounds: true,
+      // removeOutsideVisibleBounds: true,
       spiderLegPolylineOptions: { weight: 1.5, color: "#222", opacity: 0.5 },
     }).addTo(myMap);
     this.markers = markers;

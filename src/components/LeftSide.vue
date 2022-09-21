@@ -297,6 +297,7 @@ export default {
       if (!this.$store.state.reqCity) {
         return false;
       }
+      this.$store.commit("setIsLoading", true);
       fetch(this.$store.state.totalPageUrl, {
         method: "GET",
         headers: new Headers({
@@ -380,6 +381,7 @@ export default {
               );
               // console.log(a);
               if (a.length == 0) {
+                this.$store.commit("setIsLoading", false);
                 alert("查無資料");
                 this.$store.commit("setSearchResult", "");
                 return false;
@@ -390,6 +392,7 @@ export default {
             } else {
               let a = data.filter((d) => d.RouteName.includes(this.keyword));
               if (a.length == 0) {
+                this.$store.commit("setIsLoading", false);
                 alert("查無資料");
                 this.$store.commit("setSearchResult", "");
                 return false;
@@ -768,7 +771,7 @@ export default {
   background-color: #f0f9fc;
 }
 .county-word-findBike {
-  padding: 0 30px 0 43.5px;
+  padding: 0 30px 0 36px;
   color: #0e5978;
 }
 .angle-down-findBike {

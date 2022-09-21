@@ -276,7 +276,7 @@ a {
   background-color: #f0f9fc;
 }
 .county-word {
-  padding: 0 60px 0 74px;
+  padding: 0 60px 0 66px;
   color: #0e5978;
 }
 .angle-down {
