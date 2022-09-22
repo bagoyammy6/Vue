@@ -40,5 +40,12 @@
 ### 聲明
 ---
 本作品目前尚屬開發階段，商品圖片、內容等，純粹為演示前端使用，不做任何商業用途。
-### 環境建置
+### 技術與套件
 ---
+* [Vue CLI](https://cli.vuejs.org/)
+* [vue-loading-overlay](https://github.com/ankurk91/vue-loading-overlay)
+* [Leaflet](https://leafletjs.com/)
+* [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster)
+### DEMO 網址
+---
+* [YouBike 資訊網](https://github.com/bagoyammy6)
