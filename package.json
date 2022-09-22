@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "core-js": "^3.8.3",
-    "gh-pages": "^4.0.0",
     "leaflet": "^1.8.0",
     "leaflet.markercluster": "^1.5.3",
     "vue": "^3.2.13",
