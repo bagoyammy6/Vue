@@ -120,6 +120,7 @@ export default {
     },
     ...mapActions(["getCounty"]),
   },
+  // 點擊視窗內任何位置關閉選單
   created() {
     document.addEventListener("click", (e) => {
       // console.log("q");
@@ -131,6 +132,7 @@ export default {
       }
     });
   },
+  // 取得TDX API的Access Token
   beforeMount() {
     const parameter = {
       grant_type: "client_credentials",
