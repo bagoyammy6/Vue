@@ -15,748 +15,357 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import "leaflet.markercluster";
 import Wkt from "wicket";
+import { showApiError } from "../api/tdx";
+import {
+  getScenicSpots,
+  getRestaurants,
+  getNearbyScenicSpots,
+  getNearbyRestaurants,
+  indexAvailability,
+} from "../api/queries";
+import { escapeHtml as e } from "../utils/html";
+
+// Mapbox token 從環境變數讀取 (請放在不會被 commit 的 .env.local / .env.production.local)。
+// 沒有設定時改用 OpenStreetMap 官方圖磚 (免金鑰)。
+const MAPBOX_TOKEN = process.env.VUE_APP_MAPBOX_TOKEN;
+
+const ICON_SIZE = [45, 55];
+const icons = {};
+// 同一種圖示只建立一次 (舊版每個 marker 都 new 一個)
+function icon(url) {
+  if (!icons[url]) icons[url] = L.icon({ iconUrl: url, iconSize: ICON_SIZE });
+  return icons[url];
+}
+const POPUP = { className: "pop", closeButton: false };
+const LINE_STYLE = { color: "#C50047", weight: 5, opacity: 0.7 };
+
+// ---- popup 內容 (所有動態資料都經過 escapeHtml，避免 XSS) ----
+function stationPopup(station, ava) {
+  const time = station.UpdateTime
+    ? new Date(station.UpdateTime).toLocaleString()
+    : "";
+  return `<div class="show-up">
+    <div class="show-name">${e(station.StationName?.Zh_tw)}</div>
+    <div class="show-address">
+      <div class="show-address-img"><i class="fa-solid fa-location-dot"></i></div>
+      <div class="show-address-word">${e(station.StationAddress?.Zh_tw)}</div>
+    </div>
+    <div class="show-time">
+      <div class="show-time-img"><i class="fa-solid fa-clock-rotate-left"></i></div>
+      <div class="show-time-word">${e(time)}</div>
+    </div>
+    <div class="show-state">
+      <div class="show-state-run">營運狀態</div>
+      <div class="show-state-bike">單車狀態</div>
+    </div>
+    <div class="show-number">
+      <div class="available-bike">
+        <div class="available-bike-word">可借單車</div>
+        <div class="available-bike-number">${e(
+          ava?.AvailableRentBikes ?? "-"
+        )}</div>
+      </div>
+      <div class="available-empty">
+        <div class="available-empty-word">可停空位</div>
+        <div class="available-empty-number">${e(
+          ava?.AvailableReturnBikes ?? "-"
+        )}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function roadPopup(a) {
+  return `<div class="show-up">
+    <div class="show-name">${e(a.RouteName)}</div>
+    <div class="show-address">
+      <div class="show-address-img"><i class="fa-solid fa-location-dot"></i></div>
+      <div class="show-address-word">${e(a.City)} ${e(a.Town)}</div>
+    </div>
+    <div class="show-time">
+      <div class="show-time-img"><i class="fa-solid fa-arrow-right-arrow-left"></i></div>
+      <div class="show-time-word">${e(a.Direction)}</div>
+      <div class="length">
+        <div class="show-time-img"><i class="fa-solid fa-route"></i></div>
+        <div class="show-time-word">${e(a.CyclingLength)}</div>
+      </div>
+    </div>
+    <div class="show-time">
+      <div class="start-word">開始</div>
+      <div class="show-time-word">${e(a.RoadSectionStart)}</div>
+    </div>
+    <div class="show-time">
+      <div class="start-word">結束</div>
+      <div class="show-time-word">${e(a.RoadSectionEnd)}</div>
+    </div>
+  </div>`;
+}
+
+function viewPopup(d) {
+  return `<div class="show-up">
+    <div class="show-name">${e(d.ScenicSpotName)}</div>
+    <div class="show-address">
+      <div class="show-address-img"><i class="fa-solid fa-location-dot"></i></div>
+      <div class="show-address-word">${e(d.Address)}</div>
+    </div>
+    <div class="show-time">
+      <div class="start-word"><i class="fa-solid fa-phone"></i></div>
+      <div class="show-time-word">${e(d.Phone)}</div>
+    </div>
+    <div class="show-time">
+      <div class="start-word"><i class="fa-regular fa-calendar"></i></div>
+      <div class="show-time-word">${e(d.OpenTime)}</div>
+    </div>
+  </div>`;
+}
+
+function foodPopup(d) {
+  return `<div class="show-up">
+    <div class="show-name">${e(d.RestaurantName)}</div>
+    <div class="show-address">
+      <div class="show-address-img"><i class="fa-solid fa-location-dot"></i></div>
+      <div class="show-address-word">${e(d.Address)}</div>
+    </div>
+    <div class="show-time">
+      <div class="start-word"><i class="fa-solid fa-phone"></i></div>
+      <div class="show-time-word">${e(d.Phone)}</div>
+    </div>
+    <div class="show-time">
+      <div class="start-word"><i class="fa-solid fa-pen-to-square"></i></div>
+      <div class="show-time-word">${e(d.Description)}</div>
+    </div>
+  </div>`;
+}
+
+/** WKT (TDX 車道 Geometry) 轉 GeoJSON，並取得起點 [lat, lng] */
+function parseGeometry(wkt) {
+  const geo = new Wkt.Wkt().read(wkt).toJson();
+  // LineString: [[lng,lat],...]；MultiLineString: [[[lng,lat],...],...]
+  const first =
+    geo.type === "MultiLineString" ? geo.coordinates[0][0] : geo.coordinates[0];
+  return { geo, start: [first[1], first[0]] };
+}
 
 export default {
   name: "RightMap",
-  data() {
-    return {
-      showMap: this.$store.state.showMap,
-      myMap: {},
-      markers: {},
-      myLayer: {},
-      anotherLayer: {},
-      center: {},
-      long: 0,
-      home: {},
-      homePoints: {},
-    };
+  computed: {
+    showMap() {
+      return this.$store.state.showMap;
+    },
   },
   watch: {
-    "$store.state.showMap": function () {
-      this.showMap = this.$store.state.showMap;
-      // console.log("變了");
-    },
-    "$store.state.stationCoord": function () {
+    "$store.state.stationCoord"(station) {
+      if (!station?.StationPosition) return;
       this.$store.commit("setShowMap", true);
-      //手機版的popup會有偏移猜測可能是地圖的問題，先透過螢幕尺寸設定偏移量解決
-      let abc = {};
-      if (screen.width <= 414) {
-        abc = { offset: new L.Point(-183, 10) };
-      } else {
-        abc = { offset: new L.Point(0, 10) };
-      }
-      this.myMap.flyTo(
-        [
-          this.$store.state.stationCoord.StationPosition.PositionLat,
-          this.$store.state.stationCoord.StationPosition.PositionLon,
-        ],
-        19
-      );
-      let dateTime = new Date(
-        this.$store.state.stationCoord.UpdateTime
-      ).toLocaleString();
-      L.popup({
-        className: "pop",
-        closeButton: false,
-        offset: abc.offset,
-      })
-        .setLatLng([
-          this.$store.state.stationCoord.StationPosition.PositionLat,
-          this.$store.state.stationCoord.StationPosition.PositionLon,
-        ])
-        .setContent(
-          `<div class="show-up">
-            <div class="show-name">${this.$store.state.stationCoord.StationName.Zh_tw}</div>
-            <div class="show-address">
-              <div class="show-address-img">
-                <i class="fa-solid fa-location-dot"></i>
-              </div>
-              <div class="show-address-word">${this.$store.state.stationCoord.StationAddress.Zh_tw}</div>
-            </div>
-            <div class="show-time">
-              <div class="show-time-img">
-                <i class="fa-solid fa-clock-rotate-left"></i>
-              </div>
-              <div class="show-time-word">${dateTime}</div>
-            </div>
-            <div class="show-state">
-              <div class="show-state-run">營運狀態</div>
-              <div class="show-state-bike">單車狀態</div>
-            </div>
-            <div class="show-number">
-              <div class="available-bike">
-                <div class="available-bike-word">可借單車</div>
-                <div class="available-bike-number">${this.$store.state.stationAva.AvailableRentBikes}</div>
-              </div>
-              <div class="available-empty">
-                <div class="available-empty-word">可停空位</div>
-                <div class="available-empty-number">${this.$store.state.stationAva.AvailableReturnBikes}</div>
-              </div>
-            </div>
-          </div>`
-        )
+      // 手機版 popup 偏移的修正
+      const offset =
+        screen.width <= 414 ? new L.Point(-183, 10) : new L.Point(0, 10);
+      const latLng = [
+        station.StationPosition.PositionLat,
+        station.StationPosition.PositionLon,
+      ];
+      this.myMap.flyTo(latLng, 19);
+      L.popup({ ...POPUP, offset })
+        .setLatLng(latLng)
+        .setContent(stationPopup(station, this.$store.state.stationAva))
         .openOn(this.myMap);
     },
-    "$store.state.mapData": function () {
-      if (this.$route.name == "findbike") {
-        if (this.myLayer) {
-          this.markers.clearLayers();
-        } else {
-          console.log("沒有圖層");
-        }
-        // console.log(this.$store.state.mapData);
-        let a = Object.values(this.$store.state.mapData);
-        let b = Object.values(this.$store.state.mapAva);
-        // console.log(a);
-        a.forEach((d) => {
-          b.forEach((e) => {
-            if (d.StationUID == e.StationUID) {
-              const customIcon = L.icon({
-                iconUrl: "./L.svg",
-                iconSize: [45, 55],
-              });
-              let dateTime = new Date(d.UpdateTime).toLocaleString();
-              this.myLayer = L.marker(
-                [d.StationPosition.PositionLat, d.StationPosition.PositionLon],
-                { icon: customIcon }
-              ).bindPopup(
-                `<div class="show-up">
-                  <div class="show-name">${d.StationName.Zh_tw}</div>
-                  <div class="show-address">
-                    <div class="show-address-img">
-                      <i class="fa-solid fa-location-dot"></i>
-                    </div>
-                    <div class="show-address-word">${d.StationAddress.Zh_tw}</div>
-                  </div>
-                  <div class="show-time">
-                    <div class="show-time-img">
-                      <i class="fa-solid fa-clock-rotate-left"></i>
-                    </div>
-                    <div class="show-time-word">${dateTime}</div>
-                  </div>
-                  <div class="show-state">
-                    <div class="show-state-run">營運狀態</div>
-                    <div class="show-state-bike">單車狀態</div>
-                  </div>
-                  <div class="show-number">
-                    <div class="available-bike">
-                      <div class="available-bike-word">可借單車</div>
-                      <div class="available-bike-number">${e.AvailableRentBikes}</div>
-                    </div>
-                    <div class="available-empty">
-                      <div class="available-empty-word">可停空位</div>
-                      <div class="available-empty-number">${e.AvailableReturnBikes}</div>
-                    </div>
-                  </div>
-                </div>`,
-                { className: "pop", closeButton: false }
-              );
-              this.markers.addLayer(this.myLayer).addTo(this.myMap);
-            }
-          });
-        });
+    "$store.state.mapData"(list) {
+      this.markers.clearLayers();
+      const data = Object.values(list || {});
+      if (data.length === 0) {
         this.$store.commit("setIsLoading", false);
-        this.myMap.flyTo(
-          [a[0].StationPosition.PositionLat, a[0].StationPosition.PositionLon],
-          10
-        );
-      } else {
-        // console.log(this.$store.state.mapData);
-        if (this.myLayer) {
-          this.markers.clearLayers();
-        } else {
-          console.log("沒有圖層");
-        }
-        let a = Object.values(this.$store.state.mapData);
-        // console.log(a);
-        try {
-          a.forEach((a) => {
-            // console.log(a.Geometry);
-            // let geo = a.Geometry;
-            this.polyLine(a);
-          });
-        } catch (err) {
-          console.log(err);
-        }
-        this.getViewPoint();
-        this.getFoodPoint();
-        this.$store.commit("setIsLoading", false);
-        // zoom the map to the layer
-        this.myMap.fitBounds(this.markers.getBounds());
+        return;
       }
-    },
-    "$store.state.roadCoord": function () {
-      // console.log(this.$store.state.roadCoord);
-      if (this.anotherLayer) {
-        this.markers.clearLayers();
+      if (this.$route.name === "findbike") {
+        this.drawStations(data);
       } else {
-        console.log("沒有圖層");
+        this.drawRoads(data);
       }
-
-      let a = this.$store.state.roadCoord;
-      this.anotherLine(a);
-      this.myMap.fitBounds(this.markers.getBounds());
+      this.$store.commit("setIsLoading", false);
     },
-    "$store.state.goView": function () {
-      // console.log(this.$store.state.goView);
-      this.myMap.setView(
-        [
-          this.$store.state.goView.Position.PositionLat,
-          this.$store.state.goView.Position.PositionLon,
-        ],
-        19
-      );
-      L.popup({ className: "pop", closeButton: false })
-        .setLatLng([
-          this.$store.state.goView.Position.PositionLat,
-          this.$store.state.goView.Position.PositionLon,
-        ])
-        .setContent(
-          `<div class="show-up">
-            <div class="show-name">${this.$store.state.goView.ScenicSpotName}</div>
-            <div class="show-address">
-              <div class="show-address-img">
-                <i class="fa-solid fa-location-dot"></i>
-              </div>
-              <div class="show-address-word">${this.$store.state.goView.Address}</div>
-            </div>
-            <div class="show-time">
-              <div class="start-word">
-                <i class="fa-solid fa-phone"></i>
-              </div>
-              <div class="show-time-word">${this.$store.state.goView.Phone}</div>
-            </div>
-            <div class="show-time">
-              <div class="start-word">
-                <i class="fa-regular fa-calendar"></i>
-              </div>
-              <div class="show-time-word">${this.$store.state.goView.OpenTime}</div>
-            </div>
-          </div>`,
-          { className: "pop" }
-        )
+    "$store.state.roadCoord"(road) {
+      if (!road?.Geometry) return;
+      this.markers.clearLayers();
+      if (!this.drawRoad(road)) return;
+      this.fitToMarkers();
+      // 以車道範圍的中心點搜尋附近景點/餐廳
+      this.loadNearby(this.markers.getBounds().getCenter(), road.CyclingLength);
+    },
+    "$store.state.goView"(d) {
+      if (!d?.Position) return;
+      const latLng = [d.Position.PositionLat, d.Position.PositionLon];
+      this.myMap.setView(latLng, 19);
+      L.popup(POPUP)
+        .setLatLng(latLng)
+        .setContent(viewPopup(d))
         .openOn(this.myMap);
     },
-    "$store.state.goFood": function () {
-      this.myMap.setView(
-        [
-          this.$store.state.goFood.Position.PositionLat,
-          this.$store.state.goFood.Position.PositionLon,
-        ],
-        19
-      );
-      L.popup({ className: "pop", closeButton: false })
-        .setLatLng([
-          this.$store.state.goFood.Position.PositionLat,
-          this.$store.state.goFood.Position.PositionLon,
-        ])
-        .setContent(
-          `<div class="show-up">
-            <div class="show-name">${this.$store.state.goFood.RestaurantName}</div>
-            <div class="show-address">
-              <div class="show-address-img">
-                <i class="fa-solid fa-location-dot"></i>
-              </div>
-              <div class="show-address-word">${this.$store.state.goFood.Address}</div>
-            </div>
-            <div class="show-time">
-              <div class="start-word">
-                <i class="fa-solid fa-phone"></i>
-              </div>
-              <div class="show-time-word">${this.$store.state.goFood.Phone}</div>
-            </div>
-            <div class="show-time">
-              <div class="start-word">
-                <i class="fa-solid fa-pen-to-square"></i>
-              </div>
-              <div class="show-time-word">${this.$store.state.goFood.Description}</div>
-            </div>
-          </div>`,
-          { className: "pop", closeButton: false }
-        )
+    "$store.state.goFood"(d) {
+      if (!d?.Position) return;
+      const latLng = [d.Position.PositionLat, d.Position.PositionLon];
+      this.myMap.setView(latLng, 19);
+      L.popup(POPUP)
+        .setLatLng(latLng)
+        .setContent(foodPopup(d))
         .openOn(this.myMap);
     },
   },
   methods: {
-    polyLine: function (a) {
-      let geo = a.Geometry;
-      // 建立一個 wkt 的實體
-      const wicket = new Wkt.Wkt();
-      const geojsonFeature = wicket.read(geo).toJson();
-      // console.log(geojsonFeature);
-      // let a = geojsonFeature.coordinates;
-      // console.log(a[0][0][0]);
-
-      const myStyle = {
-        color: "#C50047",
-        weight: 5,
-        opacity: 0.7,
-      };
-      this.myLayer = L.geoJSON("", {
-        style: myStyle,
-      }).addData(geojsonFeature);
-      this.markers.addLayer(this.myLayer).addTo(this.myMap);
-
-      const customIcon = L.icon({
-        iconUrl: "./start.svg",
-        iconSize: [45, 55],
+    fitToMarkers() {
+      const bounds = this.markers.getBounds();
+      if (bounds.isValid()) this.myMap.fitBounds(bounds);
+    },
+    drawStations(stations) {
+      // 舊版用雙層迴圈比對 (站點數 × 站點數，上千筆時非常慢)，改用 Map 查表
+      const avaMap = indexAvailability(this.$store.state.mapAva);
+      const layers = [];
+      stations.forEach((d) => {
+        const ava = avaMap.get(d.StationUID);
+        if (!ava || !d.StationPosition) return;
+        layers.push(
+          L.marker(
+            [d.StationPosition.PositionLat, d.StationPosition.PositionLon],
+            { icon: icon("./L.svg") }
+          ).bindPopup(stationPopup(d, ava), POPUP)
+        );
       });
-      this.myLayer = L.marker(
-        [
-          geojsonFeature.coordinates[0][0][1],
-          geojsonFeature.coordinates[0][0][0],
-        ],
-        {
-          icon: customIcon,
-        }
-      ).bindPopup(
-        `<div class="show-up">
-            <div class="show-name">${a.RouteName}</div>
-            <div class="show-address">
-              <div class="show-address-img">
-                <i class="fa-solid fa-location-dot"></i>
-              </div>
-              <div class="show-address-word">${a.City} ${a.Town}</div>
-            </div>
-            <div class="show-time">
-              <div class="show-time-img">
-                <i class="fa-solid fa-arrow-right-arrow-left"></i>
-              </div>
-              <div class="show-time-word">${a.Direction}</div>
-              <div class="length">
-                <div class="show-time-img">
-                  <i class="fa-solid fa-route"></i>
-                </div>
-                <div class="show-time-word">${a.CyclingLength}</div>
-              </div>
-            </div>
-            <div class="show-time">
-              <div class="start-word">
-                開始
-              </div>
-              <div class="show-time-word">${a.RoadSectionStart}</div>
-            </div>
-            <div class="show-time">
-              <div class="start-word">
-                結束
-              </div>
-              <div class="show-time-word">${a.RoadSectionEnd}</div>
-            </div>
-          </div>`,
-        { className: "pop", closeButton: false }
-      );
-      this.markers.addLayer(this.myLayer).addTo(this.myMap);
+      // 一次加入 (markercluster 批次加入比逐筆快很多)
+      this.markers.addLayers(layers);
+      const first = stations[0].StationPosition;
+      if (first) this.myMap.flyTo([first.PositionLat, first.PositionLon], 10);
     },
-    anotherLine: function (a) {
-      let geo = a.Geometry;
-      // 建立一個 wkt 的實體
-      const wicket = new Wkt.Wkt();
-      const geojsonFeature = wicket.read(geo).toJson();
-      // console.log(geojsonFeature);
-      // let a = geojsonFeature.coordinates;
-      // console.log(a[0][0][0]);
-
-      const myStyle = {
-        color: "#C50047",
-        weight: 5,
-        opacity: 0.7,
-      };
-      this.anotherLayer = L.geoJSON("", {
-        style: myStyle,
-      }).addData(geojsonFeature);
-      this.markers.addLayer(this.anotherLayer).addTo(this.myMap);
-
-      const customIcon = L.icon({
-        iconUrl: "./start.svg",
-        iconSize: [45, 55],
-      });
-      this.anotherLayer = L.marker(
-        [
-          geojsonFeature.coordinates[0][0][1],
-          geojsonFeature.coordinates[0][0][0],
-        ],
-        {
-          icon: customIcon,
-        }
-      ).bindPopup(
-        `<div class="show-up">
-            <div class="show-name">${a.RouteName}</div>
-            <div class="show-address">
-              <div class="show-address-img">
-                <i class="fa-solid fa-location-dot"></i>
-              </div>
-              <div class="show-address-word">${a.City} ${a.Town}</div>
-            </div>
-            <div class="show-time">
-              <div class="show-time-img">
-                <i class="fa-solid fa-arrow-right-arrow-left"></i>
-              </div>
-              <div class="show-time-word">${a.Direction}</div>
-              <div class="length">
-                <div class="show-time-img">
-                  <i class="fa-solid fa-route"></i>
-                </div>
-                <div class="show-time-word">${a.CyclingLength}</div>
-              </div>
-            </div>
-            <div class="show-time">
-              <div class="start-word">
-                開始
-              </div>
-              <div class="show-time-word">${a.RoadSectionStart}</div>
-            </div>
-            <div class="show-time">
-              <div class="start-word">
-                結束
-              </div>
-              <div class="show-time-word">${a.RoadSectionEnd}</div>
-            </div>
-          </div>`,
-        { className: "pop", closeButton: false }
-      );
-      this.markers.addLayer(this.anotherLayer).addTo(this.myMap);
-      this.center = this.myMap.getCenter();
-      // console.log(this.center);
-      this.long = a.CyclingLength;
-      // console.log(this.long);
-      this.getRangeView();
-      this.getRangeFood();
-    },
-    getViewPoint: function () {
-      let url = `https://tdx.transportdata.tw/api/basic/v2/Tourism/ScenicSpot/${this.$store.state.reqCity}`;
-      fetch(url, {
-        method: "GET",
-        headers: new Headers({
-          authorization: "Bearer " + this.token.access_token,
-        }),
-      })
-        .then((data) => {
-          // console.log(data);
-          return data.json();
-        })
-        .then((data) => {
-          // console.log(data);
-          data.forEach((d) => {
-            const customIcon = L.icon({
-              iconUrl: "./view.svg",
-              iconSize: [45, 55],
-            });
-            this.myLayer = L.marker(
-              [d.Position.PositionLat, d.Position.PositionLon],
-              {
-                icon: customIcon,
-              }
-            ).bindPopup(
-              `<div class="show-up">
-                <div class="show-name">${d.ScenicSpotName}</div>
-                <div class="show-address">
-                  <div class="show-address-img">
-                    <i class="fa-solid fa-location-dot"></i>
-                  </div>
-                  <div class="show-address-word">${d.Address}</div>
-                </div>
-                <div class="show-time">
-                  <div class="start-word">
-                    <i class="fa-solid fa-phone"></i>
-                  </div>
-                  <div class="show-time-word">${d.Phone}</div>
-                </div>
-                <div class="show-time">
-                  <div class="start-word">
-                    <i class="fa-regular fa-calendar"></i>
-                  </div>
-                  <div class="show-time-word">${d.OpenTime}</div>
-                </div>
-              </div>`,
-              { className: "pop", closeButton: false }
-            );
-            this.markers.addLayer(this.myLayer).addTo(this.myMap);
-          });
-        })
-        .catch((err) => {
-          console.log(err);
-        });
-    },
-    getFoodPoint: function () {
-      let url = `https://tdx.transportdata.tw/api/basic/v2/Tourism/Restaurant/${this.$store.state.reqCity}`;
-      fetch(url, {
-        method: "GET",
-        headers: new Headers({
-          authorization: "Bearer " + this.token.access_token,
-        }),
-      })
-        .then((data) => {
-          // console.log(data);
-          return data.json();
-        })
-        .then((data) => {
-          // console.log(data);
-          data.forEach((d) => {
-            const customIcon = L.icon({
-              iconUrl: "./eat.svg",
-              iconSize: [45, 55],
-            });
-            this.myLayer = L.marker(
-              [d.Position.PositionLat, d.Position.PositionLon],
-              {
-                icon: customIcon,
-              }
-            ).bindPopup(
-              `<div class="show-up">
-                <div class="show-name">${d.RestaurantName}</div>
-                <div class="show-address">
-                  <div class="show-address-img">
-                    <i class="fa-solid fa-location-dot"></i>
-                  </div>
-                  <div class="show-address-word">${d.Address}</div>
-                </div>
-                <div class="show-time">
-                  <div class="start-word">
-                    <i class="fa-solid fa-phone"></i>
-                  </div>
-                  <div class="show-time-word">${d.Phone}</div>
-                </div>
-                <div class="show-time">
-                  <div class="start-word">
-                    <i class="fa-solid fa-pen-to-square"></i>
-                  </div>
-                  <div class="show-time-word">${d.Description}</div>
-                </div>
-              </div>`,
-              { className: "pop", closeButton: false }
-            );
-            this.markers.addLayer(this.myLayer).addTo(this.myMap);
-          });
-        })
-        .catch((err) => {
-          console.log(err);
-        });
-    },
-    getRangeView: function () {
-      let a = parseInt(this.long / 3);
-      let url = `https://tdx.transportdata.tw/api/basic/v2/Tourism/ScenicSpot/${this.$store.state.reqCity}?%24spatialFilter=nearby(${this.center.lat},${this.center.lng},${a})`;
-      fetch(url, {
-        method: "GET",
-        headers: new Headers({
-          authorization: "Bearer " + this.token.access_token,
-        }),
-      })
-        .then((data) => {
-          // console.log(data);
-          return data.json();
-        })
-        .then((data) => {
-          // console.log(data);
-          this.$store.commit("setRangeView", data);
-          data.forEach((d) => {
-            const customIcon = L.icon({
-              iconUrl: "./view.svg",
-              iconSize: [45, 55],
-            });
-            this.myLayer = L.marker(
-              [d.Position.PositionLat, d.Position.PositionLon],
-              {
-                icon: customIcon,
-              }
-            ).bindPopup(
-              `<div class="show-up">
-                <div class="show-name">${d.ScenicSpotName}</div>
-                <div class="show-address">
-                  <div class="show-address-img">
-                    <i class="fa-solid fa-location-dot"></i>
-                  </div>
-                  <div class="show-address-word">${d.Address}</div>
-                </div>
-                <div class="show-time">
-                  <div class="start-word">
-                    <i class="fa-solid fa-phone"></i>
-                  </div>
-                  <div class="show-time-word">${d.Phone}</div>
-                </div>
-                <div class="show-time">
-                  <div class="start-word">
-                    <i class="fa-regular fa-calendar"></i>
-                  </div>
-                  <div class="show-time-word">${d.OpenTime}</div>
-                </div>
-              </div>`,
-              { className: "pop", closeButton: false }
-            );
-            this.markers.addLayer(this.myLayer).addTo(this.myMap);
-          });
-        })
-        .catch((err) => {
-          console.log(err);
-        });
-    },
-    getRangeFood: function () {
-      let a = parseInt(this.long / 3);
-      let url = `https://tdx.transportdata.tw/api/basic/v2/Tourism/Restaurant/${this.$store.state.reqCity}?%24spatialFilter=nearby(${this.center.lat},${this.center.lng},${a})`;
-      fetch(url, {
-        method: "GET",
-        headers: new Headers({
-          authorization: "Bearer " + this.token.access_token,
-        }),
-      })
-        .then((data) => {
-          // console.log(data);
-          return data.json();
-        })
-        .then((data) => {
-          // console.log(data);
-          this.$store.commit("setRangeFood", data);
-          data.forEach((d) => {
-            const customIcon = L.icon({
-              iconUrl: "./eat.svg",
-              iconSize: [45, 55],
-            });
-            this.myLayer = L.marker(
-              [d.Position.PositionLat, d.Position.PositionLon],
-              {
-                icon: customIcon,
-              }
-            ).bindPopup(
-              `<div class="show-up">
-                <div class="show-name">${d.RestaurantName}</div>
-                <div class="show-address">
-                  <div class="show-address-img">
-                    <i class="fa-solid fa-location-dot"></i>
-                  </div>
-                  <div class="show-address-word">${d.Address}</div>
-                </div>
-                <div class="show-time">
-                  <div class="start-word">
-                    <i class="fa-solid fa-phone"></i>
-                  </div>
-                  <div class="show-time-word">${d.Phone}</div>
-                </div>
-                <div class="show-time">
-                  <div class="start-word">
-                    <i class="fa-solid fa-pen-to-square"></i>
-                  </div>
-                  <div class="show-time-word">${d.Description}</div>
-                </div>
-              </div>`,
-              { className: "pop", closeButton: false }
-            );
-            this.markers.addLayer(this.myLayer).addTo(this.myMap);
-          });
-        })
-        .catch((err) => {
-          console.log(err);
-        });
-    },
-    locate: function () {
-      this.$store.commit("setIsLoading", true);
-      if (this.home) {
-        this.homePoints.clearLayers();
+    drawRoad(road) {
+      try {
+        const { geo, start } = parseGeometry(road.Geometry);
+        this.markers.addLayer(L.geoJSON(geo, { style: LINE_STYLE }));
+        this.markers.addLayer(
+          L.marker(start, { icon: icon("./start.svg") }).bindPopup(
+            roadPopup(road),
+            POPUP
+          )
+        );
+        return start;
+      } catch (err) {
+        // 個別車道資料格式有誤時略過，不要讓整張地圖壞掉
+        console.warn("無法解析車道", road.RouteName, err);
+        return null;
       }
-      if (navigator.geolocation) {
-        let longitude = 120;
-        let latitude = 22;
-        let myMap = this.myMap;
-        let home = this.home;
-        let homePoints = this.homePoints;
-        let getLoading = this.$store;
-        navigator.geolocation.getCurrentPosition(
-          function (position) {
-            longitude = position.coords.longitude; //經度
-            latitude = position.coords.latitude; //緯度
-            // console.log(longitude);
-            // console.log(latitude);
-            getLoading.commit("setIsLoading", false);
-            myMap.flyTo([latitude, longitude], 17);
-            const customIcon = L.icon({
-              iconUrl: "./location.svg",
-              iconSize: [45, 55],
-            });
-            home = L.marker([latitude, longitude], {
-              icon: customIcon,
-            }).bindPopup(`<div>目前位置</div>`, {
+    },
+    drawRoads(roads) {
+      roads.forEach((r) => this.drawRoad(r));
+      this.fitToMarkers();
+      this.loadCityPoints();
+    },
+    addPoints(list, iconUrl, popup) {
+      const layers = (list || [])
+        .filter((d) => d.Position?.PositionLat)
+        .map((d) =>
+          L.marker([d.Position.PositionLat, d.Position.PositionLon], {
+            icon: icon(iconUrl),
+          }).bindPopup(popup(d), POPUP)
+        );
+      this.markers.addLayers(layers);
+    },
+    async loadCityPoints() {
+      const city = this.$store.state.reqCity;
+      try {
+        const [views, foods] = await Promise.all([
+          getScenicSpots(city),
+          getRestaurants(city),
+        ]);
+        this.addPoints(views, "./view.svg", viewPopup);
+        this.addPoints(foods, "./eat.svg", foodPopup);
+      } catch (err) {
+        showApiError(err);
+      }
+    },
+    async loadNearby(center, length) {
+      const city = this.$store.state.reqCity;
+      // 搜尋半徑：車道長度的 1/3，至少 500 公尺
+      const radius = Math.max(500, Math.round((length || 0) / 3));
+      try {
+        const [views, foods] = await Promise.all([
+          getNearbyScenicSpots(city, center.lat, center.lng, radius),
+          getNearbyRestaurants(city, center.lat, center.lng, radius),
+        ]);
+        this.$store.commit("setRangeView", views);
+        this.$store.commit("setRangeFood", foods);
+        this.addPoints(views, "./view.svg", viewPopup);
+        this.addPoints(foods, "./eat.svg", foodPopup);
+      } catch (err) {
+        showApiError(err);
+      } finally {
+        this.$store.commit("setIsLoading", false);
+      }
+    },
+    locate() {
+      if (!navigator.geolocation) {
+        alert("此瀏覽器不支援定位");
+        return;
+      }
+      this.$store.commit("setIsLoading", true);
+      this.homePoints.clearLayers();
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          this.$store.commit("setIsLoading", false);
+          this.myMap.flyTo([latitude, longitude], 17);
+          L.marker([latitude, longitude], { icon: icon("./location.svg") })
+            .bindPopup("<div>目前位置</div>", {
               className: "locate",
               closeButton: false,
-            });
-            homePoints.addLayer(home).addTo(myMap);
-          },
-          //錯誤訊息
-          function (e) {
-            const msg = e.code;
-            const dd = e.message;
-            console.error(msg);
-            console.error(dd);
-          }
-        );
-      } else {
-        alert("尚未開啟定位");
-      }
+            })
+            .addTo(this.homePoints);
+        },
+        (err) => {
+          // 舊版失敗時 loading 會一直轉不停
+          this.$store.commit("setIsLoading", false);
+          alert(err.code === 1 ? "請允許瀏覽器存取位置" : "無法取得目前位置");
+        },
+        { timeout: 10000 }
+      );
     },
   },
-  beforeMount: function GetAuthorizationHeader() {
-    const parameter = {
-      grant_type: "client_credentials",
-      client_id: "bagoyammy6-6d8a0d3f-0f27-4a43",
-      client_secret: "2bb8b519-b371-4bae-b214-d57dccc6cfdc",
-    };
-
-    let auth_url =
-      "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
-
-    fetch(auth_url, {
-      method: "POST",
-      mode: "cors",
-      body: new URLSearchParams(parameter),
-      headers: new Headers({
-        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-      }),
-    })
-      .then((data) => {
-        // console.log(data);
-        return data.json();
-      })
-      .then((accesstoken) => {
-        // console.log(accesstoken);
-        this.$store.commit("setToken", accesstoken);
-        this.token = accesstoken;
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-
-    // console.log("我被執行了");
-  },
   mounted() {
-    const myMap = L.map("mapid", {
+    // 地圖物件不需要響應式，直接掛在 this 上 (不放進 data)
+    this.myMap = L.map("mapid", {
       zoomControl: true,
-      zoom: 1,
       zoomAnimation: false,
       fadeAnimation: true,
       markerZoomAnimation: true,
     }).setView([23.611, 120.768], 8);
-    L.tileLayer(
-      "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}",
-      {
-        attribution:
-          'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-        maxZoom: 20,
-        minZoom: 7,
-        id: "mapbox/streets-v11",
-        tileSize: 512,
-        zoomOffset: -1,
-        accessToken:
-          "pk.eyJ1IjoiYmFnb3lhbW15NiIsImEiOiJjbDY5MjNyYXIwaXV6M2RxaDY0dXMweXdzIn0.NvZekiSATJeDcwdlq4WENg",
-      }
-    ).addTo(myMap);
-    //下面要在myMap有設定maxZoom屬性後才可加入，否則會報錯
-    let markers = L.markerClusterGroup({
+    const tiles = MAPBOX_TOKEN
+      ? L.tileLayer(
+          "https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}",
+          {
+            attribution:
+              'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            maxZoom: 20,
+            minZoom: 7,
+            id: "mapbox/streets-v11",
+            tileSize: 512,
+            zoomOffset: -1,
+            accessToken: MAPBOX_TOKEN,
+          }
+        )
+      : L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 19,
+          minZoom: 7,
+        });
+    tiles.addTo(this.myMap);
+    // 要在 map 設定 maxZoom 之後才能加入 markerClusterGroup
+    this.markers = L.markerClusterGroup({
       showCoverageOnHover: false,
-      // removeOutsideVisibleBounds: true,
+      chunkedLoading: true,
       spiderLegPolylineOptions: { weight: 1.5, color: "#222", opacity: 0.5 },
-    }).addTo(myMap);
-    this.markers = markers;
-    this.myMap = myMap;
-    let homePoints = L.layerGroup().addTo(myMap);
-    this.homePoints = homePoints;
-    // console.log(this.$store.state.mapData);
+    }).addTo(this.myMap);
+    this.homePoints = L.layerGroup().addTo(this.myMap);
+  },
+  beforeUnmount() {
+    if (this.myMap) this.myMap.remove();
   },
 };
 </script>

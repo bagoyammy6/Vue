@@ -49,14 +49,13 @@ export default {
   beforeUnmount() {
     this.$store.commit("setCurrCity", "縣市");
     this.$store.commit("setReqCity", "");
-    this.$store.dispatch("getSearchUrl", "");
-    // console.log(this.$store.state.searchUrl);
     this.$store.commit("setCurrDistance", "距離");
     this.$store.commit("setCurrDirection", "方向");
     this.$store.commit("setSearchResult", []);
     this.$store.commit("setNowPage", 1);
-    this.$store.commit("setSkipNumber", 0);
     this.$store.commit("setMapData", []);
+    this.$store.commit("setFullList", []);
+    this.$store.commit("setAdvancedList", []);
     this.$store.commit("setTotalPage", 1);
     this.$store.commit("setIsActive", true);
     this.$store.commit("setWork", true);
@@ -65,6 +64,8 @@ export default {
     this.$store.commit("setNowAdvancedPage", 1);
     this.$store.commit("setTotalAdvancedPage", 1);
     this.$store.commit("setSearch", false);
+    // 單車頁的關鍵字不應該帶到車道頁 (反之亦然)
+    this.$store.commit("setKeyword", "");
   },
 };
 </script>

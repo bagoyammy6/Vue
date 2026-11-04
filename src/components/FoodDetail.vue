@@ -9,7 +9,7 @@
   <div class="divid"></div>
   <div class="scroll">
     <div class="view-point">
-      <div class="view-point-img" v-if="!goFood.Picture.PictureUrl1">
+      <div class="view-point-img" v-if="!goFood.Picture?.PictureUrl1">
         <img
           src="../assets/no_picture_big.png"
           width="332"
@@ -17,12 +17,12 @@
           alt="沒有圖片"
         />
       </div>
-      <div class="view-point-img" v-if="!!goFood.Picture.PictureUrl1">
+      <div class="view-point-img" v-if="!!goFood.Picture?.PictureUrl1">
         <img
-          :src="goFood.Picture.PictureUrl1"
+          :src="goFood.Picture?.PictureUrl1"
           width="332"
           height="237"
-          :alt="goFood.Picture.PictureDescription1"
+          :alt="goFood.Picture?.PictureDescription1"
         />
       </div>
       <div class="view-point-title">{{ goFood.RestaurantName }}</div>

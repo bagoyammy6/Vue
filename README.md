@@ -46,6 +46,11 @@
 * [vue-loading-overlay](https://github.com/ankurk91/vue-loading-overlay)
 * [Leaflet](https://leafletjs.com/)
 * [Leaflet.markercluster](https://github.com/Leaflet/Leaflet.markercluster)
+### 部署與 API 設定
+---
+本專案透過 Cloudflare Worker 代理 TDX API，金鑰不會出現在前端。設定方式請看 [docs/升級教學.md](docs/升級教學.md)。
+
+React 版本：[bagoyammy6/youbike-react](https://github.com/bagoyammy6/youbike-react)
 ### DEMO 網址
 ---
 * [YouBike 資訊網](https://bagoyammy6.github.io/Vue/)

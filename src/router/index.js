@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHashHistory } from "vue-router";
 import HomeView from "../views/HomeView.vue";
 
 const routes = [
@@ -32,8 +32,10 @@ const routes = [
   },
 ];
 
+// GitHub Pages 沒有 SPA fallback，用 history 模式時重新整理 /Vue/findbike 會 404，
+// 所以改用 hash 模式 (網址會變成 /Vue/#/findbike)。
 const router = createRouter({
-  history: createWebHistory(process.env.BASE_URL),
+  history: createWebHashHistory(process.env.BASE_URL),
   routes,
 });
 

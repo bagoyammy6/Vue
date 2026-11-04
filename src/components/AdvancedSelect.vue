@@ -71,6 +71,9 @@
 </template>
 
 <script>
+import { mapState } from "vuex";
+import { ROAD_FILTERS, paginate, totalPages } from "../api/queries";
+
 export default {
   name: "AdvancedSelect",
   data() {
@@ -78,20 +81,15 @@ export default {
       showRange: false,
       showDirection: false,
       showAdvanced: true,
-      currDistance: this.$store.state.currDistance,
-      distance: {
-        1: "近",
-        2: "中",
-        3: "遠",
-      },
-      currDirection: this.$store.state.currDirection,
+      distance: { 1: "近", 2: "中", 3: "遠" },
       direction: { 1: "雙向", 2: "單向" },
-      searchResult: this.$store.state.searchResult,
-      add: this.$store.state.add,
     };
+  },
+  computed: {
+    ...mapState(["currDistance", "currDirection", "add"]),
   },
   methods: {
-    setShowRange: function () {
+    canFilter() {
       if (!this.$store.state.reqCity) {
         alert("請先選擇縣市");
         return false;
@@ -99,344 +97,80 @@ export default {
       if (!this.$store.state.searchFirst) {
         alert("請先搜尋");
         return false;
-      } else {
-        this.showRange = !this.showRange;
       }
+      return true;
     },
-    setShowDirection: function () {
-      if (!this.$store.state.reqCity) {
-        alert("請先選擇縣市");
-        return false;
-      }
-      if (!this.$store.state.searchFirst) {
-        alert("請先搜尋");
-        return false;
-      } else {
-        this.showDirection = !this.showDirection;
-      }
+    setShowRange() {
+      if (this.canFilter()) this.showRange = !this.showRange;
     },
-    setShowAdvanced: function () {
+    setShowDirection() {
+      if (this.canFilter()) this.showDirection = !this.showDirection;
+    },
+    setShowAdvanced() {
       this.showAdvanced = !this.showAdvanced;
     },
-    changeCurrDistance: function (value) {
+    changeCurrDistance(value) {
       this.$store.commit("setCurrDistance", value);
-      // console.log(this.$store.state.currDistance);
     },
-    changeCurrDirection: function (value) {
+    changeCurrDirection(value) {
       this.$store.commit("setCurrDirection", value);
-      // console.log(this.$store.state.currDirection);
     },
-    changeBtnMobile: function () {
+    changeBtnMobile() {
       this.$store.commit("setAdd", true);
     },
-    changeSearchResultDistance: function (value) {
-      let head = document.querySelector(".scroll");
-      head.scrollTop = 0;
+    /**
+     * 套用篩選：直接篩選已下載的完整清單，不需要再打 API。
+     * code: 1 近 / 2 中 / 3 遠 / 4 雙向 / 5 單向
+     */
+    applyFilter(code) {
+      const store = this.$store;
+      const head = document.querySelector(".scroll");
+      if (head) head.scrollTop = 0;
+
+      const list = store.state.fullList.filter(ROAD_FILTERS[code]);
+      store.commit("setAdvUrl", code);
+      store.commit("setAdvancedList", list);
+      store.commit("setSearchPage", false);
+      store.commit("setAdvancedPage", true);
+      store.commit("setPress", false);
+
+      const total = totalPages(list);
+      store.commit("setNowAdvancedPage", 1);
+      store.commit("setTotalAdvancedPage", total);
+      store.commit("setSearchResult", paginate(list, 1));
+      store.commit("setLeft", true);
+      store.commit("setRight", total <= 1);
+      if (list.length === 0) alert("查無資料");
+    },
+    changeSearchResultDistance(key) {
       this.$store.commit("setCurrDirection", "方向");
-      this.$store.commit("setSearchPage", false);
-      this.$store.commit("setAdvancedPage", true);
-      this.$store.commit("setAdvancedNumber", 0);
-      this.$store.commit("setNowAdvancedPage", 1);
-      this.$store.commit("setLeft", true);
-      this.$store.commit("setRight", true);
-      // console.log(this.$store.state.right);
-      this.$store.commit("setPress", false);
-      let url = "";
-      let totalUrl = "";
-      // console.log(typeof value);
-      switch (value) {
-        case "1":
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20le%203000&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          // console.log(url);
-          totalUrl = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20le%203000`;
-          this.$store.commit("setAdvUrl", 1);
-          break;
-        case "2":
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20gt%203000%20and%20CyclingLength%20le%2010000&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          totalUrl = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20gt%203000%20and%20CyclingLength%20le%2010000`;
-          this.$store.commit("setAdvUrl", 2);
-          break;
-        case "3":
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20gt%2010000&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          totalUrl = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20gt%2010000`;
-          this.$store.commit("setAdvUrl", 3);
-          break;
-      }
-      // console.log(url);
-      if (!this.$store.state.keyword) {
-        fetch(url, {
-          method: "GET",
-          headers: new Headers({
-            authorization: "Bearer " + this.token.access_token,
-          }),
-        })
-          .then((data) => {
-            // console.log(data);
-            return data.json();
-          })
-          .then((data) => {
-            if (data.length == 0) {
-              this.$store.commit("setSearchResult", data);
-              this.$store.commit("setTotalAdvancedPage", 1);
-              this.$store.commit("setLeft", true);
-              this.$store.commit("setRight", true);
-              alert("查無資料");
-              return false;
-            }
-            this.$store.commit("setSearchResult", data);
-            // console.log(this.$store.state.searchResult);
-            //計算totalAdvancedPage
-            fetch(totalUrl, {
-              method: "GET",
-              headers: new Headers({
-                authorization: "Bearer " + this.token.access_token,
-              }),
-            })
-              .then((data) => {
-                // console.log(data);
-                return data.json();
-              })
-              .then((data) => {
-                // console.log(data);
-                this.$store.commit(
-                  "setTotalAdvancedPage",
-                  Math.ceil(data.length / 6)
-                );
-                if (this.$store.state.totalAdvancedPage != 1) {
-                  this.$store.commit("setRight", false);
-                }
-              })
-              .catch((err) => {
-                console.log(err);
-              });
-          })
-          .catch((err) => {
-            console.log(err);
-          });
-      } else {
-        fetch(totalUrl, {
-          method: "GET",
-          headers: new Headers({
-            authorization: "Bearer " + this.token.access_token,
-          }),
-        })
-          .then((data) => {
-            // console.log(data);
-            return data.json();
-          })
-          .then((data) => {
-            // console.log(data);
-            let a = data.filter((d) =>
-              d.RouteName.includes(this.$store.state.keyword)
-            );
-            if (a.length == 0) {
-              this.$store.commit("setSearchResult", a);
-              this.$store.commit("setTotalAdvancedPage", 1);
-              this.$store.commit("setLeft", true);
-              this.$store.commit("setRight", true);
-              alert("查無資料");
-              return false;
-            }
-            this.$store.commit("setSearchResult", a);
-            // console.log(this.$store.state.searchResult);
-            // this.$store.commit("setTotalAdvancedPage", Math.ceil(a.length / 6));
-            // if (this.$store.state.totalAdvancedPage != 1) {
-            //   this.$store.commit("setRight", false);
-            // }
-          })
-          .catch((err) => {
-            console.log(err);
-          });
-      }
+      this.applyFilter(Number(key));
     },
-    changeSearchResultDirection: function (value) {
-      let head = document.querySelector(".scroll");
-      head.scrollTop = 0;
+    changeSearchResultDirection(key) {
       this.$store.commit("setCurrDistance", "距離");
-      this.$store.commit("setSearchPage", false);
-      this.$store.commit("setAdvancedPage", true);
-      this.$store.commit("setAdvancedNumber", 0);
-      this.$store.commit("setNowAdvancedPage", 1);
-      this.$store.commit("setLeft", true);
-      this.$store.commit("setRight", true);
-      this.$store.commit("setPress", false);
       this.$store.commit("setAdd", false);
-      // let encode = encodeURI(value);
-      // console.log(encode);
-      //雙向 %E9%9B%99%E5%90%91
-      //單向 %E5%96%AE%E5%90%91
-      let url = "";
-      let totalUrl = "";
-      // console.log(value);
-      // console.log(typeof value);
-      switch (value) {
-        case "1":
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=Direction%20eq%20%27%E9%9B%99%E5%90%91%27&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          totalUrl = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=Direction%20eq%20%27%E9%9B%99%E5%90%91%27`;
-          this.$store.commit("setAdvUrl", 4);
-          break;
-        case "2":
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=Direction%20eq%20%27%E5%96%AE%E5%90%91%27&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          totalUrl = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=Direction%20eq%20%27%E5%96%AE%E5%90%91%27`;
-          this.$store.commit("setAdvUrl", 5);
-          break;
+      this.applyFilter(Number(key) + 3);
+    },
+    onDocumentClick(e) {
+      if (
+        this.$refs.selectRange &&
+        !this.$refs.selectRange.contains(e.target)
+      ) {
+        this.showRange = false;
       }
-      if (!this.$store.state.keyword) {
-        fetch(url, {
-          method: "GET",
-          headers: new Headers({
-            authorization: "Bearer " + this.token.access_token,
-          }),
-        })
-          .then((data) => {
-            // console.log(data);
-            return data.json();
-          })
-          .then((data) => {
-            // console.log(data);
-            if (data.length == 0) {
-              this.$store.commit("setSearchResult", data);
-              this.$store.commit("setTotalAdvancedPage", 1);
-              this.$store.commit("setLeft", true);
-              this.$store.commit("setRight", true);
-              alert("查無資料");
-              return false;
-            }
-            this.$store.commit("setSearchResult", data);
-            // console.log(this.$store.state.searchResult);
-            //計算totalAdvancedPage
-            fetch(totalUrl, {
-              method: "GET",
-              headers: new Headers({
-                authorization: "Bearer " + this.token.access_token,
-              }),
-            })
-              .then((data) => {
-                // console.log(data);
-                return data.json();
-              })
-              .then((data) => {
-                // console.log(data);
-                this.$store.commit(
-                  "setTotalAdvancedPage",
-                  Math.ceil(data.length / 6)
-                );
-                if (this.$store.state.totalAdvancedPage != 1) {
-                  this.$store.commit("setRight", false);
-                }
-              })
-              .catch((err) => {
-                console.log(err);
-              });
-          })
-          .catch((err) => {
-            console.log(err);
-          });
-      } else {
-        fetch(totalUrl, {
-          method: "GET",
-          headers: new Headers({
-            authorization: "Bearer " + this.token.access_token,
-          }),
-        })
-          .then((data) => {
-            // console.log(data);
-            return data.json();
-          })
-          .then((data) => {
-            // console.log(data);
-            let a = data.filter((d) =>
-              d.RouteName.includes(this.$store.state.keyword)
-            );
-            if (a.length == 0) {
-              this.$store.commit("setSearchResult", a);
-              this.$store.commit("setTotalAdvancedPage", 1);
-              this.$store.commit("setLeft", true);
-              this.$store.commit("setRight", true);
-              alert("查無資料");
-              return false;
-            }
-            this.$store.commit("setSearchResult", a);
-            // console.log(this.$store.state.searchResult);
-            // this.$store.commit("setTotalAdvancedPage", Math.ceil(a.length / 6));
-            // if (this.$store.state.totalAdvancedPage != 1) {
-            //   this.$store.commit("setRight", false);
-            // }
-          })
-          .catch((err) => {
-            console.log(err);
-          });
+      if (
+        this.$refs.selectDirection &&
+        !this.$refs.selectDirection.contains(e.target)
+      ) {
+        this.showDirection = false;
       }
     },
   },
-  watch: {
-    "$store.state.searchResult": function () {
-      this.currDistance = "距離";
-      this.currDirection = "方向";
-    },
-    "$store.state.add": function () {
-      this.add = this.$store.state.add;
-    },
-    "$store.state.currDistance": function () {
-      this.currDistance = this.$store.state.currDistance;
-    },
-    "$store.state.currDirection": function () {
-      this.currDirection = this.$store.state.currDirection;
-    },
+  mounted() {
+    document.addEventListener("click", this.onDocumentClick);
   },
-  created() {
-    document.addEventListener("click", (e) => {
-      if (this.$refs.selectRange) {
-        let isSelf = this.$refs.selectRange.contains(e.target);
-        if (!isSelf) {
-          this.showRange = false;
-        }
-      }
-      if (this.$refs.selectDirection) {
-        let isSelf = this.$refs.selectDirection.contains(e.target);
-        if (!isSelf) {
-          this.showDirection = false;
-        }
-      }
-    });
-  },
-  beforeMount: function GetAuthorizationHeader() {
-    const parameter = {
-      grant_type: "client_credentials",
-      client_id: "bagoyammy6-6d8a0d3f-0f27-4a43",
-      client_secret: "2bb8b519-b371-4bae-b214-d57dccc6cfdc",
-    };
-
-    let auth_url =
-      "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
-
-    fetch(auth_url, {
-      method: "POST",
-      mode: "cors",
-      body: new URLSearchParams(parameter),
-      headers: new Headers({
-        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-      }),
-    })
-      .then((data) => {
-        // console.log(data);
-        return data.json();
-      })
-      .then((accesstoken) => {
-        // console.log(accesstoken);
-        this.$store.commit("setToken", accesstoken);
-        this.token = accesstoken;
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-
-    // console.log("我被執行了");
-  },
-  beforeUpdate: function () {
-    this.currDistance = this.$store.state.currDistance;
-    this.currDirection = this.$store.state.currDirection;
-    this.searchResult = this.$store.state.searchResult;
+  beforeUnmount() {
+    document.removeEventListener("click", this.onDocumentClick);
   },
 };
 </script>

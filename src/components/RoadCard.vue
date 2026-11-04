@@ -45,6 +45,8 @@
 </template>
 
 <script>
+import { highlight } from "../utils/html";
+
 export default {
   name: "RoadCard",
   data() {
@@ -67,14 +69,9 @@ export default {
       this.$store.commit("setLeft", true);
       this.$store.commit("setRight", true);
     },
-    keywordHighlight: function (val) {
-      // console.log(this.$store.state.keyword);
-      let q = val.replace(
-        new RegExp(this.$store.state.keyword, "g"),
-        `<span class="highlight">${this.$store.state.keyword}</span>`
-      );
-      // console.log(q);
-      return q;
+    keywordHighlight(val) {
+      // 跳脫 HTML 並用純文字比對，避免 XSS 與特殊字元 (如 "(") 造成正規表示式錯誤
+      return highlight(val, this.$store.state.keyword.trim());
     },
   },
   watch: {

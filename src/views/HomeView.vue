@@ -65,7 +65,6 @@ export default {
       show: false,
       county: this.$store.state.county,
       currCity: this.$store.state.currCity,
-      token: this.$store.state.token,
     };
   },
   computed: {
@@ -101,9 +100,8 @@ export default {
       this.$store.commit("setReqCity", value);
       // console.log(this.$store.state.reqCity);
       // console.log(this.$route.name);
-      this.nowPage = 1;
+      this.$store.commit("setNowPage", 1);
       this.$store.commit("setWork", true);
-      this.$store.commit("setSkipNumber", 0);
       this.$store.commit("setSearchFirst", false);
       this.$store.commit("setCurrDistance", "距離");
       this.$store.commit("setCurrDirection", "方向");
@@ -118,54 +116,21 @@ export default {
       this.$store.commit("setSearch", true);
       // console.log(this.$store.state.search);
     },
+    onDocumentClick(e) {
+      if (this.$refs.countyList && !this.$refs.countyList.contains(e.target)) {
+        this.show = false;
+      }
+    },
     ...mapActions(["getCounty"]),
   },
   // 點擊視窗內任何位置關閉選單
-  created() {
-    document.addEventListener("click", (e) => {
-      // console.log("q");
-      if (this.$refs.countyList) {
-        let isSelf = this.$refs.countyList.contains(e.target);
-        if (!isSelf) {
-          this.show = false;
-        }
-      }
-    });
+  mounted() {
+    document.addEventListener("click", this.onDocumentClick);
   },
-  // 取得TDX API的Access Token
+  beforeUnmount() {
+    document.removeEventListener("click", this.onDocumentClick);
+  },
   beforeMount() {
-    const parameter = {
-      grant_type: "client_credentials",
-      client_id: "bagoyammy6-6d8a0d3f-0f27-4a43",
-      client_secret: "2bb8b519-b371-4bae-b214-d57dccc6cfdc",
-    };
-
-    let auth_url =
-      "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
-
-    fetch(auth_url, {
-      method: "POST",
-      mode: "cors",
-      body: new URLSearchParams(parameter),
-      headers: new Headers({
-        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-      }),
-    })
-      .then((data) => {
-        // console.log(data);
-        return data.json();
-      })
-      .then((accesstoken) => {
-        // console.log(accesstoken);
-        this.$store.commit("setToken", accesstoken);
-        this.token = accesstoken;
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-
-    // console.log("我被執行了");
-
     this.getCounty(this.$route.name);
     // console.log(this.$store.state.county);
     this.$store.commit("setCurrCity", "縣市");
