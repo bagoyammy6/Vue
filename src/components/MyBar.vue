@@ -128,7 +128,6 @@ export default {
       currCity: this.$store.state.currCity,
       county: this.$store.state.county,
       showCounty: false,
-      token: this.$store.state.token,
     };
   },
   computed: {
@@ -168,14 +167,24 @@ export default {
       this.$store.commit("setReqCity", value);
       // console.log(this.$store.state.reqCity);
       // console.log(this.$route.name);
-      this.nowPage = 1;
+      this.$store.commit("setNowPage", 1);
       this.$store.commit("setWork", true);
-      this.$store.commit("setSkipNumber", 0);
       this.$store.commit("setSearchFirst", false);
       this.$store.commit("setCurrDistance", "距離");
       this.$store.commit("setCurrDirection", "方向");
       this.$store.commit("setAdd", false);
       this.$store.commit("setPress", false);
+    },
+    onDocumentClick(e) {
+      if (
+        this.$refs.selectBarCounty &&
+        !this.$refs.selectBarCounty.contains(e.target)
+      ) {
+        this.showCounty = false;
+      }
+      if (this.$refs.findBike && !this.$refs.findBike.contains(e.target)) {
+        this.isActive = false;
+      }
     },
     getSearch: function () {
       if (!this.$store.state.reqCity) {
@@ -186,22 +195,11 @@ export default {
       // console.log(this.$store.state.search);
     },
   },
-  created() {
-    document.addEventListener("click", (e) => {
-      // console.log("q");
-      if (this.$refs.selectBarCounty) {
-        let isSelf = this.$refs.selectBarCounty.contains(e.target);
-        if (!isSelf) {
-          this.showCounty = false;
-        }
-      }
-      if (this.$refs.findBike) {
-        let isSelf = this.$refs.findBike.contains(e.target);
-        if (!isSelf) {
-          this.isActive = false;
-        }
-      }
-    });
+  mounted() {
+    document.addEventListener("click", this.onDocumentClick);
+  },
+  beforeUnmount() {
+    document.removeEventListener("click", this.onDocumentClick);
   },
 };
 </script>

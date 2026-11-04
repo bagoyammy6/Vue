@@ -1,0 +1,11 @@
+name = "youbike-tdx-proxy"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# 允許呼叫這個 Worker 的網站 (逗號分隔)，第一個是正式站
+ALLOWED_ORIGINS = "https://bagoyammy6.github.io,http://localhost:8080,http://localhost:5173"
+
+# 金鑰「不要」寫在這裡！請用指令設定成 Secret：
+#   npx wrangler secret put TDX_CLIENT_ID
+#   npx wrangler secret put TDX_CLIENT_SECRET

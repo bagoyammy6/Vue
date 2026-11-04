@@ -47,7 +47,7 @@
         <div
           class="search-btn-findBike"
           :class="{ changeSearch: press }"
-          @click="search(), getMapAva(), getMapData()"
+          @click="search()"
         >
           <div class="search-btn-word-findBike">搜尋</div>
         </div>
@@ -89,12 +89,22 @@
 </template>
 
 <script>
+import { mapState } from "vuex";
 import BikeCard from "../components/BikeCard.vue";
 import ViewDetail from "../components/ViewDetail.vue";
 import ViewCard from "../components/ViewCard.vue";
 import AdvancedSelect from "../components/AdvancedSelect.vue";
 import RoadCard from "../components/RoadCard.vue";
 import FoodDetail from "../components/FoodDetail.vue";
+import { showApiError } from "../api/tdx";
+import {
+  getStations,
+  getAvailability,
+  getCyclingShapes,
+  indexAvailability,
+  paginate,
+  totalPages,
+} from "../api/queries";
 
 export default {
   name: "LeftSide",
@@ -108,572 +118,215 @@ export default {
   },
   data() {
     return {
-      findWord: this.$store.state.tittle,
-      county: this.$store.state.county,
       showCounty: false,
       showFind: true,
-      currCity: this.$store.state.currCity,
-      token: this.$store.state.token,
-      showMap: this.$store.state.showMap,
-      currentComponent: this.$store.state.currentComponent,
-      nowPage: this.$store.state.nowPage,
-      isActive: this.$store.state.isActive,
-      work: this.$store.state.work,
-      totalPage: this.$store.state.totalPage,
-      searchPage: this.$store.state.searchPage,
-      advancedPage: this.$store.state.advancedPage,
-      nowAdvancedPage: this.$store.state.nowAdvancedPage,
-      totalAdvancedPage: this.$store.state.totalAdvancedPage,
-      left: this.$store.state.left,
-      right: this.$store.state.right,
-      advUrl: this.$store.state.advUrl,
-      press: this.$store.state.press,
-      mapOrWord: "顯示列表",
+      // 站點 UID -> 即時車輛資料 (不需要響應式，所以不放進 store)
+      avaMap: new Map(),
     };
   },
   computed: {
+    // 直接讀 store，不再複製一份到 data 再用 watch 同步
+    ...mapState({
+      findWord: "tittle",
+      county: "county",
+      currCity: "currCity",
+      showMap: "showMap",
+      currentComponent: "currentComponent",
+      nowPage: "nowPage",
+      isActive: "isActive",
+      work: "work",
+      totalPage: "totalPage",
+      searchPage: "searchPage",
+      advancedPage: "advancedPage",
+      nowAdvancedPage: "nowAdvancedPage",
+      totalAdvancedPage: "totalAdvancedPage",
+      left: "left",
+      right: "right",
+      press: "press",
+      showAdvanced: "showAdvanced",
+    }),
     keyword: {
       get() {
-        // console.log("get");
         return this.$store.state.keyword;
       },
       set(value) {
         this.$store.commit("setKeyword", value);
-        // console.log("set");
         this.$store.commit("setPress", false);
       },
     },
-    placeholder: {
-      get() {
-        if (this.$route.name == "findbike" || this.$route.name == "home") {
-          return "請輸入車站名稱";
-        } else {
-          return "請輸入車道名稱";
-        }
-      },
+    placeholder() {
+      return this.isBikePage ? "請輸入車站名稱" : "請輸入車道名稱";
     },
-    showAdvanced: {
-      get() {
-        // console.log("get");
-        return this.$store.state.showAdvanced;
-      },
-      set(value) {
-        this.$store.commit("setShowAdvanced", value);
-        // console.log("set");
-      },
+    isBikePage() {
+      return this.$route.name === "findbike" || this.$route.name === "home";
+    },
+    mapOrWord() {
+      return this.showMap ? "顯示列表" : "顯示地圖";
     },
   },
   methods: {
-    setShowCounty: function () {
+    setShowCounty() {
       this.showCounty = !this.showCounty;
     },
-    setShowFind: function () {
+    setShowFind() {
       this.showFind = !this.showFind;
     },
-    changeCurrCity: function (value) {
+    changeCurrCity(value) {
       this.$store.commit("setCurrCity", value);
-      // console.log(this.$store.state.currCity);
     },
-    setReqCity: function (value) {
+    setReqCity(value) {
       this.$store.commit("setReqCity", value);
-      // console.log(this.$store.state.reqCity);
-      // console.log(this.$route.name);
-      this.nowPage = 1;
+      this.$store.commit("setNowPage", 1);
       this.$store.commit("setWork", true);
-      this.$store.commit("setSkipNumber", 0);
       this.$store.commit("setSearchFirst", false);
       this.$store.commit("setCurrDistance", "距離");
       this.$store.commit("setCurrDirection", "方向");
       this.$store.commit("setAdd", false);
       this.$store.commit("setPress", false);
     },
-    search: function () {
-      if (!this.$store.state.reqCity) {
+    scrollToTop() {
+      const head = document.querySelector(".scroll");
+      if (head) head.scrollTop = 0;
+    },
+    /**
+     * 搜尋：每個縣市只抓一次完整清單 (有快取)，關鍵字與分頁都在前端處理。
+     */
+    async search() {
+      const city = this.$store.state.reqCity;
+      if (!city) {
         alert("請選擇縣市");
-        return false;
+        return;
       }
-      this.$store.commit("setCurrDistance", "距離");
-      this.$store.commit("setCurrDirection", "方向");
-      this.$store.commit("setAdd", false);
-      this.$store.commit("setSearchPage", true);
-      this.$store.commit("setAdvancedPage", false);
-      this.$store.dispatch("getSearchUrl", this.$route.name);
-      this.$store.commit("setSearchFirst", true);
-      if (this.$route.name == "findbike") {
-        this.$store.commit("setCurrentComponent", "BikeCard");
-      } else {
-        this.$store.commit("setCurrentComponent", "RoadCard");
-        this.$store.commit("setShowAdvanced", true);
-      }
-      let head = document.querySelector(".scroll");
-      head.scrollTop = 0;
-      this.nowPage = this.$store.state.skipNumber / 6 + 1;
-      if (this.$store.state.keyword == "") {
-        this.$store.commit("setWork", false);
-        fetch(this.$store.state.searchUrl, {
-          method: "GET",
-          headers: new Headers({
-            authorization: "Bearer " + this.token.access_token,
-          }),
-        })
-          .then((data) => {
-            // console.log(data);
-            return data.json();
-          })
-          .then((data) => {
-            // console.log(data);
-            this.$store.commit("setSearchResult", data);
-            // console.log(this.$store.state.searchResult);
-            this.getAvailable();
-            this.getTotalPage();
-          })
-          .catch((err) => {
-            console.log(err);
-          });
-        this.$store.commit("setPress", true);
-      } else {
-        this.$store.commit("setWork", true);
-        this.nowPage = 1;
-        this.getTotalPage();
-        this.$store.commit("setPress", true);
-      }
-    },
-    getAvailable: function () {
-      if (this.$route.name == "findbike") {
-        fetch(this.$store.state.availableUrl, {
-          method: "GET",
-          headers: new Headers({
-            authorization: "Bearer " + this.token.access_token,
-          }),
-        })
-          .then((data) => {
-            // console.log(data);
-            return data.json();
-          })
-          .then((data) => {
-            this.$store.commit("setAvailable", data);
-            // console.log(this.$store.state.available);
-          })
-          .catch((err) => {
-            console.log(err);
-          });
-      } else {
-        return false;
+      const store = this.$store;
+      store.commit("setCurrDistance", "距離");
+      store.commit("setCurrDirection", "方向");
+      store.commit("setAdd", false);
+      store.commit("setSearchPage", true);
+      store.commit("setAdvancedPage", false);
+      store.commit("setSearchFirst", true);
+      store.commit(
+        "setCurrentComponent",
+        this.isBikePage ? "BikeCard" : "RoadCard"
+      );
+      if (!this.isBikePage) store.commit("setShowAdvanced", true);
+      store.commit("setPress", true);
+      store.commit("setIsLoading", true);
+      this.scrollToTop();
+
+      const keyword = store.state.keyword.trim();
+      try {
+        let list;
+        if (this.isBikePage) {
+          const [stations, ava] = await Promise.all([
+            getStations(city),
+            getAvailability(city),
+          ]);
+          this.avaMap = indexAvailability(ava);
+          list = keyword
+            ? stations.filter((d) => d.StationName?.Zh_tw?.includes(keyword))
+            : stations;
+          // 地圖需要先拿到即時資料再拿站點資料 (RightMap 監聽 mapData)
+          store.commit("setMapAva", ava);
+        } else {
+          const roads = await getCyclingShapes(city);
+          list = keyword
+            ? roads.filter((d) => d.RouteName?.includes(keyword))
+            : roads;
+        }
+
+        store.commit("setFullList", list);
+        if (list.length === 0) {
+          store.commit("setSearchResult", []);
+          store.commit("setAvailable", []);
+          store.commit("setTotalPage", 1);
+          this.showPage(1);
+          store.commit("setIsLoading", false);
+          alert("查無資料");
+          return;
+        }
+        store.commit("setMapData", list);
+        this.showPage(1);
+      } catch (err) {
+        store.commit("setIsLoading", false);
+        store.commit("setPress", false);
+        showApiError(err);
       }
     },
-    allAvailable: function () {
-      if (this.$route.name == "findbike") {
-        fetch(this.$store.state.allUrl, {
-          method: "GET",
-          headers: new Headers({
-            authorization: "Bearer " + this.token.access_token,
-          }),
-        })
-          .then((data) => {
-            // console.log(data);
-            return data.json();
-          })
-          .then((data) => {
-            // console.log(data);
-            // console.log(Object.values(this.$store.state.searchResult));
-            let a = Object.values(this.$store.state.searchResult);
-            let total = [];
-            a.forEach((a) => {
-              let b = data.filter((d) => d?.StationUID == a?.StationUID);
-              total.push(b[0]);
-            });
-            this.$store.commit("setAvailable", total);
-            // console.log(this.$store.state.available);
-            // console.log(b);
-          })
-          .catch((err) => {
-            console.log(err);
-          });
-      } else {
-        return false;
+    showPage(page) {
+      const store = this.$store;
+      const list = store.state.fullList;
+      const total = totalPages(list);
+      const items = paginate(list, page);
+      store.commit("setNowPage", page);
+      store.commit("setTotalPage", total);
+      store.commit("setSearchResult", items);
+      if (this.isBikePage) {
+        store.commit(
+          "setAvailable",
+          items.map((s) => this.avaMap.get(s.StationUID))
+        );
       }
+      // isActive = 上一頁停用、work = 下一頁停用
+      store.commit("setIsActive", page <= 1);
+      store.commit("setWork", page >= total);
+      this.scrollToTop();
     },
-    getMapData: function () {
-      if (!this.$store.state.reqCity) {
-        return false;
-      }
-      this.$store.commit("setIsLoading", true);
-      fetch(this.$store.state.totalPageUrl, {
-        method: "GET",
-        headers: new Headers({
-          authorization: "Bearer " + this.token.access_token,
-        }),
-      })
-        .then((data) => {
-          // console.log(data);
-          return data.json();
-        })
-        .then((data) => {
-          if (this.keyword) {
-            if (this.$route.name == "findbike") {
-              let a = data.filter((d) =>
-                d.StationName.Zh_tw.includes(this.keyword)
-              );
-              // console.log(a);
-              if (a.length == 0) {
-                return false;
-              }
-              this.$store.commit("setMapData", a);
-            } else {
-              let a = data.filter((d) => d.RouteName.includes(this.keyword));
-              if (a.length == 0) {
-                return false;
-              }
-              this.$store.commit("setMapData", a);
-            }
-          } else {
-            // console.log(data);
-            this.$store.commit("setMapData", data);
-          }
-        })
-        .catch((err) => {
-          console.log(err);
-        });
-    },
-    getMapAva: function () {
-      if (!this.$store.state.reqCity) {
-        return false;
-      }
-      if (this.$route.name == "findbike") {
-        fetch(this.$store.state.allUrl, {
-          method: "GET",
-          headers: new Headers({
-            authorization: "Bearer " + this.token.access_token,
-          }),
-        })
-          .then((data) => {
-            // console.log(data);
-            return data.json();
-          })
-          .then((data) => {
-            this.$store.commit("setMapAva", data);
-            // console.log(this.$store.state.mapAva);
-          })
-          .catch((err) => {
-            console.log(err);
-          });
-      } else {
-        return false;
-      }
-    },
-    getTotalPage: function () {
-      fetch(this.$store.state.totalPageUrl, {
-        method: "GET",
-        headers: new Headers({
-          authorization: "Bearer " + this.token.access_token,
-        }),
-      })
-        .then((data) => {
-          // console.log(data);
-          return data.json();
-        })
-        .then((data) => {
-          if (this.keyword) {
-            this.$store.commit("setTotalPage", 1);
-            if (this.$route.name == "findbike") {
-              let a = data.filter((d) =>
-                d.StationName.Zh_tw.includes(this.keyword)
-              );
-              // console.log(a);
-              if (a.length == 0) {
-                this.$store.commit("setIsLoading", false);
-                alert("查無資料");
-                this.$store.commit("setSearchResult", "");
-                return false;
-              }
-              this.$store.commit("setSearchResult", a);
-              // console.log(this.$store.state.searchResult);
-              this.allAvailable();
-            } else {
-              let a = data.filter((d) => d.RouteName.includes(this.keyword));
-              if (a.length == 0) {
-                this.$store.commit("setIsLoading", false);
-                alert("查無資料");
-                this.$store.commit("setSearchResult", "");
-                return false;
-              }
-              this.$store.commit("setSearchResult", a);
-              // console.log(this.$store.state.searchResult);
-            }
-          } else {
-            // console.log(data);
-            let p = Math.ceil(data.length / 6);
-            this.$store.commit("setTotalPage", p);
-          }
-        })
-        .catch((err) => {
-          console.log(err);
-        });
-    },
-    changeShowMap: function () {
+    changeShowMap() {
       this.$store.commit("setShowMap", !this.showMap);
     },
-    minusPage: function () {
-      this.$store.commit("setWork", false);
-      this.$store.commit("setNowPage", (this.nowPage -= 1));
-      // this.$store.commit("setTopNumber", this.$store.state.topNumber - 5);
-      this.$store.commit("setSkipNumber", this.$store.state.skipNumber - 6);
-      this.$store.dispatch("getSearchUrl", this.$route.name);
-      this.search();
+    minusPage() {
+      if (this.nowPage > 1) this.showPage(this.nowPage - 1);
     },
-    addPage: function () {
-      this.$store.commit("setIsActive", false);
-      this.$store.commit("setNowPage", (this.nowPage += 1));
-      // console.log(this.$store.state.nowPage);
-      // this.$store.commit("setTopNumber", this.$store.state.topNumber + 5);
-      this.$store.commit("setSkipNumber", this.$store.state.skipNumber + 6);
-      this.$store.dispatch("getSearchUrl", this.$route.name);
-      this.search();
+    addPage() {
+      if (this.nowPage < this.totalPage) this.showPage(this.nowPage + 1);
     },
-    minusAdvanced: function () {
-      let head = document.querySelector(".scroll");
-      head.scrollTop = 0;
-      this.$store.commit("setRight", false);
-      this.$store.commit("setNowAdvancedPage", this.nowAdvancedPage - 1);
-      this.$store.commit(
-        "setAdvancedNumber",
-        this.$store.state.advancedNumber - 6
-      );
-      let url = "";
-      switch (this.advUrl) {
-        case 1:
-          // console.log(this.advUrl);
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20le%203000&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          break;
-        case 2:
-          // console.log(this.advUrl);
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20gt%203000%20and%20CyclingLength%20le%2010000&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          break;
-        case 3:
-          // console.log(this.advUrl);
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20gt%2010000&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          break;
-        case 4:
-          // console.log(this.advUrl);
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=Direction%20eq%20%27%E9%9B%99%E5%90%91%27&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          break;
-        case 5:
-          // console.log(this.advUrl);
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=Direction%20eq%20%27%E5%96%AE%E5%90%91%27&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
+    showAdvancedPage(page) {
+      const store = this.$store;
+      const list = store.state.advancedList;
+      const total = totalPages(list);
+      store.commit("setNowAdvancedPage", page);
+      store.commit("setTotalAdvancedPage", total);
+      store.commit("setSearchResult", paginate(list, page));
+      store.commit("setLeft", page <= 1);
+      store.commit("setRight", page >= total);
+      this.scrollToTop();
+    },
+    minusAdvanced() {
+      if (this.nowAdvancedPage > 1)
+        this.showAdvancedPage(this.nowAdvancedPage - 1);
+    },
+    addAdvanced() {
+      if (this.nowAdvancedPage < this.totalAdvancedPage)
+        this.showAdvancedPage(this.nowAdvancedPage + 1);
+    },
+    onDocumentClick(e) {
+      if (
+        this.$refs.selectCounty &&
+        !this.$refs.selectCounty.contains(e.target)
+      ) {
+        this.showCounty = false;
       }
-      // console.log(url);
-      fetch(url, {
-        method: "GET",
-        headers: new Headers({
-          authorization: "Bearer " + this.token.access_token,
-        }),
-      })
-        .then((data) => {
-          // console.log(data);
-          return data.json();
-        })
-        .then((data) => {
-          this.$store.commit("setSearchResult", data);
-          // console.log(this.$store.state.searchResult);
-        })
-        .catch((err) => {
-          console.log(err);
-        });
-    },
-    addAdvanced: function () {
-      let head = document.querySelector(".scroll");
-      head.scrollTop = 0;
-      this.$store.commit("setLeft", false);
-      this.$store.commit("setNowAdvancedPage", this.nowAdvancedPage + 1);
-      this.$store.commit(
-        "setAdvancedNumber",
-        this.$store.state.advancedNumber + 6
-      );
-      let url = "";
-      switch (this.advUrl) {
-        case 1:
-          // console.log(this.advUrl);
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20le%203000&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          break;
-        case 2:
-          // console.log(this.advUrl);
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20gt%203000%20and%20CyclingLength%20le%2010000&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          break;
-        case 3:
-          // console.log(this.advUrl);
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=CyclingLength%20gt%2010000&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          break;
-        case 4:
-          // console.log(this.advUrl);
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=Direction%20eq%20%27%E9%9B%99%E5%90%91%27&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-          break;
-        case 5:
-          // console.log(this.advUrl);
-          url = `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.$store.state.reqCity}?%24filter=Direction%20eq%20%27%E5%96%AE%E5%90%91%27&%24top=6&%24skip=${this.$store.state.advancedNumber}`;
-      }
-      // console.log(url);
-      fetch(url, {
-        method: "GET",
-        headers: new Headers({
-          authorization: "Bearer " + this.token.access_token,
-        }),
-      })
-        .then((data) => {
-          // console.log(data);
-          return data.json();
-        })
-        .then((data) => {
-          this.$store.commit("setSearchResult", data);
-          // console.log(this.$store.state.searchResult);
-        })
-        .catch((err) => {
-          console.log(err);
-        });
     },
   },
   watch: {
-    "$store.state.currentComponent": function () {
-      this.currentComponent = this.$store.state.currentComponent;
-    },
-    "$store.state.showAdvanced": function () {
-      this.showAdvanced = this.$store.state.showAdvanced;
-    },
-    nowPage: function () {
-      if (this.nowPage == 1) {
-        this.$store.commit("setIsActive", true);
-      } else {
-        this.$store.commit("setIsActive", false);
-      }
-      if (this.nowPage == this.totalPage) {
-        // console.log(this.nowPage);
-        // console.log(this.totalPage);
-        this.$store.commit("setWork", true);
-        this.$store.commit("setPress", true);
-      }
-    },
-    totalPage: function () {
-      if (this.nowPage == this.totalPage) {
-        // console.log(this.nowPage);
-        // console.log(this.totalPage);
-        this.$store.commit("setWork", true);
-        this.$store.commit("setPress", true);
-      }
-    },
-    "$store.state.searchPage": function () {
-      this.searchPage = this.$store.state.searchPage;
-    },
-    "$store.state.advancedPage": function () {
-      this.advancedPage = this.$store.state.advancedPage;
-    },
-    "$store.state.left": function () {
-      this.left = this.$store.state.left;
-    },
-    "$store.state.right": function () {
-      this.right = this.$store.state.right;
-    },
-    "$store.state.totalAdvancedPage": function () {
-      this.totalAdvancedPage = this.$store.state.totalAdvancedPage;
-    },
-    "$store.state.advUrl": function () {
-      this.advUrl = this.$store.state.advUrl;
-    },
-    "$store.state.nowAdvancedPage": function () {
-      this.nowAdvancedPage = this.$store.state.nowAdvancedPage;
-      if (this.nowAdvancedPage == 1) {
-        this.$store.commit("setLeft", true);
-      }
-      if (this.totalAdvancedPage == this.nowAdvancedPage) {
-        this.$store.commit("setRight", true);
-      }
-      // console.log(this.nowAdvancedPage);
-      // console.log(this.totalAdvancedPage);
-    },
-    "$store.state.isActive": function () {
-      this.isActive = this.$store.state.isActive;
-    },
-    "$store.state.work": function () {
-      this.work = this.$store.state.work;
-    },
-    "$store.state.totalPage": function () {
-      this.totalPage = this.$store.state.totalPage;
-    },
-    "$store.state.press": function () {
-      this.press = this.$store.state.press;
-    },
-    "$store.state.search": function () {
-      if (this.$store.state.search) {
+    // 首頁 / 導覽列按下搜尋時會把 store.search 設成 true
+    "$store.state.search"(val) {
+      if (val) {
+        this.$store.commit("setSearch", false);
         this.search();
-        this.getMapData();
-        this.getMapAva();
-        // console.log("in");
-      }
-      // console.log("out");
-      this.$store.commit("setSearch", false);
-    },
-    "$store.state.showMap": function () {
-      this.showMap = this.$store.state.showMap;
-      if (this.showMap) {
-        this.mapOrWord = "顯示列表";
-      } else {
-        this.mapOrWord = "顯示地圖";
       }
     },
   },
-  created() {
-    document.addEventListener("click", (e) => {
-      // console.log("q");
-      if (this.$refs.selectCounty) {
-        let isSelf = this.$refs.selectCounty.contains(e.target);
-        if (!isSelf) {
-          this.showCounty = false;
-        }
-      }
-    });
-  },
-  beforeMount: function GetAuthorizationHeader() {
-    const parameter = {
-      grant_type: "client_credentials",
-      client_id: "bagoyammy6-6d8a0d3f-0f27-4a43",
-      client_secret: "2bb8b519-b371-4bae-b214-d57dccc6cfdc",
-    };
-
-    let auth_url =
-      "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token";
-
-    fetch(auth_url, {
-      method: "POST",
-      mode: "cors",
-      body: new URLSearchParams(parameter),
-      headers: new Headers({
-        "content-type": "application/x-www-form-urlencoded;charset=UTF-8",
-      }),
-    })
-      .then((data) => {
-        // console.log(data);
-        return data.json();
-      })
-      .then((accesstoken) => {
-        // console.log(accesstoken);
-        this.$store.commit("setToken", accesstoken);
-        this.token = accesstoken;
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-
-    // console.log("我被執行了");
-  },
-  mounted: function () {
+  mounted() {
+    document.addEventListener("click", this.onDocumentClick);
     if (this.$store.state.search) {
+      this.$store.commit("setSearch", false);
       this.search();
-      this.getMapData();
-      this.getMapAva();
     }
-    this.$store.commit("setSearch", false);
   },
-  beforeUpdate: function () {
-    this.currCity = this.$store.state.currCity;
-    // this.reqCity = this.$store.state.reqCity;
+  // 元件卸載時要移除監聽，否則每次進出頁面都會多一個 listener (記憶體洩漏)
+  beforeUnmount() {
+    document.removeEventListener("click", this.onDocumentClick);
   },
 };
 </script>

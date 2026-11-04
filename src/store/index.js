@@ -1,3 +1,4 @@
+import { markRaw } from "vue";
 import { createStore } from "vuex";
 
 export default createStore({
@@ -8,21 +9,13 @@ export default createStore({
     reqCity: "",
     currDistance: "距離",
     currDirection: "方向",
-    searchUrl: "",
-    availableUrl: "",
     searchResult: [],
     available: [],
-    token: {},
     showMap: true,
     keyword: "",
     currentComponent: "",
     showAdvanced: true,
-    topNumber: 6,
-    skipNumber: 0,
     nowPage: 1,
-    allUrl: "",
-    totalPageUrl: "",
-    advancedNumber: 0,
     searchPage: true,
     advancedPage: false,
     nowAdvancedPage: 1,
@@ -48,6 +41,10 @@ export default createStore({
     search: false,
     add: false,
     isLoading: false,
+    // 目前搜尋結果的完整清單 (已套用關鍵字)，分頁在前端處理
+    fullList: [],
+    // 進階篩選後的完整清單
+    advancedList: [],
   },
   mutations: {
     setTittle(state, payload) {
@@ -68,20 +65,11 @@ export default createStore({
     setCurrDirection(state, payload) {
       state.currDirection = payload;
     },
-    setSearchUrl(state, payload) {
-      state.searchUrl = payload;
-    },
-    setAvailableUrl(state, payload) {
-      state.availableUrl = payload;
-    },
     setSearchResult(state, payload) {
       state.searchResult = payload;
     },
     setAvailable(state, payload) {
       state.available = payload;
-    },
-    setToken(state, payload) {
-      state.token = payload;
     },
     setShowMap(state, payload) {
       state.showMap = payload;
@@ -95,23 +83,8 @@ export default createStore({
     setShowAdvanced(state, payload) {
       state.showAdvanced = payload;
     },
-    setTopNumber(state, payload) {
-      state.topNumber = payload;
-    },
-    setSkipNumber(state, payload) {
-      state.skipNumber = payload;
-    },
     setNowPage(state, payload) {
       state.nowPage = payload;
-    },
-    setAllUrl(state, payload) {
-      state.allUrl = payload;
-    },
-    setTotalPageUrl(state, payload) {
-      state.totalPageUrl = payload;
-    },
-    setAdvancedNumber(state, payload) {
-      state.advancedNumber = payload;
     },
     setSearchPage(state, payload) {
       state.searchPage = payload;
@@ -188,6 +161,13 @@ export default createStore({
     setIsLoading(state, payload) {
       state.isLoading = payload;
     },
+    // 大型清單用 markRaw 避免 Vue 對上千筆資料做深層響應式追蹤
+    setFullList(state, payload) {
+      state.fullList = markRaw(payload || []);
+    },
+    setAdvancedList(state, payload) {
+      state.advancedList = markRaw(payload || []);
+    },
   },
   actions: {
     getTittle(context, payload) {
@@ -239,39 +219,6 @@ export default createStore({
           KinmenCounty: "金門縣",
           PenghuCounty: "澎湖縣",
         });
-      }
-    },
-    getSearchUrl(context, payload) {
-      let a = payload;
-      if (a == "findbike" || a == "home") {
-        context.commit(
-          "setSearchUrl",
-          `https://tdx.transportdata.tw/api/basic/v2/Bike/Station/City/${this.state.reqCity}?%24top=${this.state.topNumber}&%24skip=${this.state.skipNumber}`
-        );
-        // console.log(this.state.searchUrl);
-        context.commit(
-          "setAvailableUrl",
-          `https://tdx.transportdata.tw/api/basic/v2/Bike/Availability/City/${this.state.reqCity}?%24top=${this.state.topNumber}&%24skip=${this.state.skipNumber}`
-        );
-        context.commit(
-          "setAllUrl",
-          `https://tdx.transportdata.tw/api/basic/v2/Bike/Availability/City/${this.state.reqCity}`
-        );
-        context.commit(
-          "setTotalPageUrl",
-          `https://tdx.transportdata.tw/api/basic/v2/Bike/Station/City/${this.state.reqCity}`
-        );
-      }
-      if (a == "findroad") {
-        context.commit(
-          "setSearchUrl",
-          `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.state.reqCity}?%24top=${this.state.topNumber}&%24skip=${this.state.skipNumber}`
-        );
-        // console.log(this.state.searchUrl);
-        context.commit(
-          "setTotalPageUrl",
-          `https://tdx.transportdata.tw/api/basic/v2/Cycling/Shape/City/${this.state.reqCity}`
-        );
       }
     },
     getCurrentComponent(context, payload) {

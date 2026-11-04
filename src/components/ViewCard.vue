@@ -16,7 +16,7 @@
       @dblclick="viewChangeCurrentComponent"
     >
       <div class="view-card-results-img-wrap">
-        <div class="view-card-results-img" v-if="!d.Picture.PictureUrl1">
+        <div class="view-card-results-img" v-if="!d.Picture?.PictureUrl1">
           <img
             src="../assets/no_picture.png"
             width="96"
@@ -24,12 +24,12 @@
             alt="沒有圖片"
           />
         </div>
-        <div class="view-card-results-img" v-if="!!d.Picture.PictureUrl1">
+        <div class="view-card-results-img" v-if="!!d.Picture?.PictureUrl1">
           <img
-            :src="d.Picture.PictureUrl1"
+            :src="d.Picture?.PictureUrl1"
             width="96"
             height="96"
-            :alt="d.Picture.PictureDescription1"
+            :alt="d.Picture?.PictureDescription1"
           />
         </div>
       </div>
@@ -58,7 +58,7 @@
       @dblclick="foodChangeCurrentComponent"
     >
       <div class="view-card-results-img-wrap">
-        <div class="view-card-results-img" v-if="!d.Picture.PictureUrl1">
+        <div class="view-card-results-img" v-if="!d.Picture?.PictureUrl1">
           <img
             src="../assets/no_picture.png"
             width="96"
@@ -66,12 +66,12 @@
             alt="沒有圖片"
           />
         </div>
-        <div class="view-card-results-img" v-if="!!d.Picture.PictureUrl1">
+        <div class="view-card-results-img" v-if="!!d.Picture?.PictureUrl1">
           <img
-            :src="d.Picture.PictureUrl1"
+            :src="d.Picture?.PictureUrl1"
             width="96"
             height="96"
-            :alt="d.Picture.PictureDescription1"
+            :alt="d.Picture?.PictureDescription1"
           />
         </div>
       </div>
